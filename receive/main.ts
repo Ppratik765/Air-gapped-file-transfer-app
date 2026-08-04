@@ -52,6 +52,9 @@ const settingsEl = document.getElementById("settings")!;
 const cfgWidth = document.getElementById("cfg-width") as HTMLSelectElement;
 const cfgCapFps = document.getElementById("cfg-capfps") as HTMLSelectElement;
 const cfgWorkers = document.getElementById("cfg-workers") as HTMLSelectElement;
+if (navigator.hardwareConcurrency && navigator.hardwareConcurrency >= 4) {
+  cfgWorkers.value = String(Math.min(4, navigator.hardwareConcurrency - 1));
+}
 const cameraActual = document.getElementById("camera-actual")!;
 const noSignalToast = document.getElementById("no-signal")!;
 const noSignalDialog = document.getElementById("no-signal-dialog") as HTMLDialogElement;
