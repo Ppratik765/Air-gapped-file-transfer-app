@@ -8,7 +8,7 @@
 export const NO_SIGNAL_HINT_FRAME_BYTES = 1465;
 export const NO_SIGNAL_HINT_TX_FPS = 24;
 
-export const DEFAULT_TX_FPS = 30;
+export const DEFAULT_TX_FPS = 60;
 export const DEFAULT_FRAME_BYTES = 1465;
 
 // The hint values appear in these lists by construction, not by coincidence.
