@@ -19,9 +19,6 @@ export function applyTheme(theme: Theme, animate = false): void {
 
   if (animate) {
     // GSAP smooth theme transition animation
-    const targetBg = theme === "dark" ? "#000000" : "#fefae0";
-    const targetAccent = theme === "dark" ? "#fca311" : "#d4a373";
-
     gsap.to(root, {
       duration: 0.45,
       ease: "power2.out",
