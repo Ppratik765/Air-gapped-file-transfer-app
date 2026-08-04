@@ -12,6 +12,7 @@
 //   the probing, so everything here is capability-gated rather than UA-gated.
 
 import { LTDecoder } from "../shared/fountain";
+import { initTheme } from "../shared/theme";
 import {
   estimateTransferProgress,
   expectedFountainOverhead,
@@ -83,6 +84,7 @@ const pool = new DecodeWorkerPool(createDecodeWorker, (bytes) => onDecoded(bytes
 const captureTimes: number[] = [];
 const decodeTimes: number[] = [];
 startBtn.onclick = () => void start();
+initTheme();
 
 // The header nav markup is shared verbatim between both tool pages; each page
 // marks its own link. Optional because the standalone build swaps the nav for
