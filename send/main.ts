@@ -239,6 +239,16 @@ async function selectDemo(fileName: string): Promise<void> {
 async function selectFile(): Promise<void> {
   const file = cfgFile.files?.[0];
   if (!file) return;
+
+  // Auto-adjust bytes per frame for optimal payload block count
+  if (file.size > 500 * 1024) {
+    cfgBytes.value = "2331";
+  } else if (file.size > 150 * 1024) {
+    cfgBytes.value = "1850";
+  } else {
+    cfgBytes.value = "1465";
+  }
+
   await startSelection(`preparing ${file.name}…`, async () => {
     // Checked here, off File.size, rather than after reading the bytes: a file
     // well past the limit should be refused instantly instead of after the
