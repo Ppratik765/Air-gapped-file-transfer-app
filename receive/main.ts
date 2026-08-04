@@ -52,9 +52,6 @@ const settingsEl = document.getElementById("settings")!;
 const cfgWidth = document.getElementById("cfg-width") as HTMLSelectElement;
 const cfgCapFps = document.getElementById("cfg-capfps") as HTMLSelectElement;
 const cfgWorkers = document.getElementById("cfg-workers") as HTMLSelectElement;
-if (navigator.hardwareConcurrency && navigator.hardwareConcurrency >= 4) {
-  cfgWorkers.value = String(Math.min(4, navigator.hardwareConcurrency - 1));
-}
 const cameraActual = document.getElementById("camera-actual")!;
 const noSignalToast = document.getElementById("no-signal")!;
 const noSignalDialog = document.getElementById("no-signal-dialog") as HTMLDialogElement;
@@ -291,7 +288,6 @@ function scheduleFrame(gen: number) {
   else requestAnimationFrame(next);
 }
 
-const MAX_DECODE_DIM = 640;
 const grab = document.createElement("canvas");
 let frameId = 0;
 
@@ -301,27 +297,14 @@ function captureFrame() {
   if (!vw || !vh) return;
   captureTimes.push(performance.now());
   if (pool.busyCount === pool.size) return; // all busy — drop it, no harm done
-
-  let dw = vw;
-  let dh = vh;
-  if (dw > MAX_DECODE_DIM || dh > MAX_DECODE_DIM) {
-    if (dw > dh) {
-      dh = Math.round((vh * MAX_DECODE_DIM) / vw);
-      dw = MAX_DECODE_DIM;
-    } else {
-      dw = Math.round((vw * MAX_DECODE_DIM) / vh);
-      dh = MAX_DECODE_DIM;
-    }
-  }
-
-  if (grab.width !== dw || grab.height !== dh) {
-    grab.width = dw;
-    grab.height = dh;
+  if (grab.width !== vw || grab.height !== vh) {
+    grab.width = vw;
+    grab.height = vh;
   }
   const ctx = grab.getContext("2d", { willReadFrequently: true })!;
-  ctx.drawImage(video, 0, 0, dw, dh);
-  const img = ctx.getImageData(0, 0, dw, dh);
-  pool.submit({ id: frameId++, buf: img.data.buffer, w: dw, h: dh }, [img.data.buffer]);
+  ctx.drawImage(video, 0, 0);
+  const img = ctx.getImageData(0, 0, vw, vh);
+  pool.submit({ id: frameId++, buf: img.data.buffer, w: vw, h: vh }, [img.data.buffer]);
 }
 
 function onDecoded(bytes: Uint8Array) {
