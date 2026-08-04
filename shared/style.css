@@ -398,28 +398,89 @@ details.settings input[type="range"] {
    free to mean *verified* and red free to mean *failed*, which this UI needs.
    Every colour below is a token; the only literal colours left in this file are
    functional (the QR quiet zone, the letterbox behind the camera). */
-:root {
+:root,
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #fefae0;
+  --panel: #faedcd;
+  --panel-strong: #e9edc9;
+  --line: #ccd5ae;
+  --line-bright: #d4a373;
+  --text: #2c2416;
+  --text-dim: #4a3d2c;
+  --muted: #73624c;
+  --muted-dim: #96836c;
+  --accent: #d4a373;
+  --accent-hi: #c2905f;
+  --accent-ink: #fefae0;
+  --green: #487844;
+  --red: #c0392b;
+  --viewport-bg: #1c1917;
+  --accent-rgb: 212, 163, 115;
+  --bg-rgb: 254, 250, 224;
+}
+
+:root[data-theme="dark"] {
   color-scheme: dark;
-  --bg: #070a11;
-  --panel: #0e1420;
-  --panel-strong: #121a29;
-  --line: #1d2740;
-  --line-bright: #34466f;
-  --text: #dde6f5;
-  --text-dim: #b9c6dd;
-  --muted: #7c8aa8;
-  --muted-dim: #5c6883;
-  --accent: #58c8ff;
-  --accent-hi: #8adaff;
-  /* Ink for text sitting ON the accent. Separate token because a light theme
-     would need this to go the other way. */
-  --accent-ink: #04121c;
-  --green: #5fe0b0;
-  --red: #ff7b72;
-  /* Behind the camera image: stays near-black in any theme. */
-  --viewport-bg: #04070d;
-  --accent-rgb: 88, 200, 255;
-  --bg-rgb: 7, 10, 17;
+  --bg: #000000;
+  --panel: #14213d;
+  --panel-strong: #1e2e50;
+  --line: #283a60;
+  --line-bright: #fca311;
+  --text: #ffffff;
+  --text-dim: #e5e5e5;
+  --muted: #9aa5b8;
+  --muted-dim: #6c788c;
+  --accent: #fca311;
+  --accent-hi: #ffb73b;
+  --accent-ink: #000000;
+  --green: #2ecc71;
+  --red: #e74c3c;
+  --viewport-bg: #000000;
+  --accent-rgb: 252, 163, 17;
+  --bg-rgb: 0, 0, 0;
+}
+
+html, body, .site-header, .site-footer, .transfer-card, .file-picker,
+.help-dialog, .settings, input, button, select, textarea, .mode-nav, .brand {
+  transition: background-color 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+              border-color 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+              color 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.theme-toggle-btn {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: 6px 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  transition: background-color 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+}
+
+.theme-toggle-btn:hover {
+  background: var(--panel-strong);
+  border-color: var(--line-bright);
+  transform: translateY(-1px);
+}
+
+.theme-toggle-icon {
+  width: 15px;
+  height: 15px;
+  flex: none;
+  display: block;
 }
 
 /* Column flex (gap zeroed — the base body gap would pad between header, main
