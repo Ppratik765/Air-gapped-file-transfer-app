@@ -401,23 +401,25 @@ details.settings input[type="range"] {
 :root,
 :root[data-theme="light"] {
   color-scheme: light;
-  --bg: #fefae0;
-  --panel: #faedcd;
-  --panel-strong: #e9edc9;
-  --line: #ccd5ae;
-  --line-bright: #d4a373;
-  --text: #2c2416;
-  --text-dim: #4a3d2c;
-  --muted: #73624c;
-  --muted-dim: #96836c;
-  --accent: #d4a373;
-  --accent-hi: #c2905f;
-  --accent-ink: #fefae0;
-  --green: #487844;
-  --red: #c0392b;
-  --viewport-bg: #1c1917;
-  --accent-rgb: 212, 163, 115;
-  --bg-rgb: 254, 250, 224;
+  --bg: #ffffff;
+  --panel: #cbf3f0;
+  --panel-strong: #b4ebe7;
+  --line: #2ec4b6;
+  --line-bright: #ff9f1c;
+  --text: #0b2522;
+  --text-dim: #18423d;
+  --muted: #2d6961;
+  --muted-dim: #4c8a82;
+  --accent: #2ec4b6;
+  --accent-hi: #24a89c;
+  --accent-secondary: #ffbf69;
+  --accent-amber: #ff9f1c;
+  --accent-ink: #ffffff;
+  --green: #2ec4b6;
+  --red: #e74c3c;
+  --viewport-bg: #0b2522;
+  --accent-rgb: 46, 196, 182;
+  --bg-rgb: 255, 255, 255;
 }
 
 :root[data-theme="dark"] {
