@@ -206,6 +206,7 @@ async function start() {
   pool.resize(Number(cfgWorkers.value));
   reportCameraSettings();
   void applyCameraExtras();
+  preview.addEventListener("click", () => void applyCameraExtras());
   if (!settingsWired) {
     settingsWired = true;
     for (const el of [cfgWidth, cfgCapFps, cfgWorkers]) {
