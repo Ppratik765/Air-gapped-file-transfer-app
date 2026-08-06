@@ -8,7 +8,7 @@ The payload travels as light.
 
 ## Try it
 
-### **→ [WaveDrop Repository](https://github.com/Ppratik765/Offline-file-transfer-app)**
+### **→ YET TO BE DEPLOYED**
 
 Open it on both devices and go — nothing to install. Works offline after the
 first visit, and installs as an app on both iOS and Android if you want it on
@@ -19,11 +19,6 @@ preserved, gzip only when it helps, SHA-256 verified before anything is
 offered — and received video plays right in the page. Extracted from a larger
 experiment that reached **128 KB/s phone-to-phone**.
 
-<p align="center">
-  <img src="docs/receiving.jpg" width="420"
-       alt="Phone receiving a file over light: 130.5 KB/s goodput, halfway through decoding the sender's animated QR stream" />
-</p>
-<p align="center"><em>Mid-transfer: a phone pulling a file out of the air at 130 KB/s.</em></p>
 
 Neither mode is encrypted: whatever is on the sending screen is readable by
 any camera pointed at it. The property this gives you is no network, not
