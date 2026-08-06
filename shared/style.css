@@ -650,16 +650,22 @@ html, body, .site-header, .site-footer, .transfer-card, .file-picker,
   justify-content: space-between;
   gap: 30px;
   padding: clamp(24px, 4vw, 42px);
-  border: 1px solid var(--line);
+  border: 1px solid var(--line-bright);
   border-radius: 18px;
   background: linear-gradient(150deg, var(--panel-strong), var(--panel));
+  box-shadow: 0 4px 20px rgba(255, 159, 28, 0.08);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.35s;
+}
+
+.transfer-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 28px rgba(255, 159, 28, 0.16);
 }
 
 .note-feature-card {
   background:
     linear-gradient(150deg, rgba(var(--accent-rgb), 0.07), transparent 55%),
     var(--panel);
-  border-color: var(--line-bright);
 }
 
 .transfer-card h2 {
