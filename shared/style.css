@@ -404,21 +404,21 @@ details.settings input[type="range"] {
   --bg: #ffffff;
   --panel: #cbf3f0;
   --panel-strong: #b4ebe7;
-  --line: #2ec4b6;
-  --line-bright: #ff9f1c;
-  --text: #0b2522;
-  --text-dim: #18423d;
-  --muted: #2d6961;
-  --muted-dim: #4c8a82;
-  --accent: #2ec4b6;
-  --accent-hi: #24a89c;
+  --line: #149387;
+  --line-bright: #e68a00;
+  --text: #081c19;
+  --text-dim: #0f2e2a;
+  --muted: #17423c;
+  --muted-dim: #2a5c55;
+  --accent: #0f8e83;
+  --accent-hi: #e68a00;
   --accent-secondary: #ffbf69;
   --accent-amber: #ff9f1c;
   --accent-ink: #ffffff;
-  --green: #2ec4b6;
-  --red: #e74c3c;
-  --viewport-bg: #0b2522;
-  --accent-rgb: 46, 196, 182;
+  --green: #0f8e83;
+  --red: #d9381e;
+  --viewport-bg: #081c19;
+  --accent-rgb: 15, 142, 131;
   --bg-rgb: 255, 255, 255;
 }
 
