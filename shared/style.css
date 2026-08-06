@@ -708,7 +708,18 @@ html, body, .site-header, .site-footer, .transfer-card, .file-picker,
   transition:
     background-color 140ms ease,
     border-color 140ms ease,
-    color 140ms ease;
+    color 140ms ease,
+    transform 140ms ease,
+    box-shadow 140ms ease;
+}
+
+.action:hover,
+.action:focus-visible {
+  background: var(--accent-amber);
+  border-color: var(--accent-amber);
+  color: #ffffff;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(255, 159, 28, 0.25);
 }
 
 /* Stroke SVG rather than a text glyph: → and ↓ came from whatever the
