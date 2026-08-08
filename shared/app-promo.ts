@@ -4,6 +4,8 @@
  * Displays a top banner to mobile web users who are NOT running inside the
  * native Android WebView app, inviting them to download the native APK for
  * faster scanning and larger file transfers.
+ *
+ * The banner appears every time the user opens or reloads the site.
  */
 
 export function isMobileDevice(): boolean {
@@ -18,8 +20,7 @@ export function initAppPromoBanner(): void {
   const banner = document.getElementById("app-promo-banner");
   if (!banner) return;
 
-  const dismissed = sessionStorage.getItem("wavedrop-dismiss-promo") === "true";
-  const shouldShow = isMobileDevice() && !isInsideNativeApp() && !dismissed;
+  const shouldShow = isMobileDevice() && !isInsideNativeApp();
 
   if (shouldShow) {
     banner.style.display = "block";
@@ -31,7 +32,6 @@ export function initAppPromoBanner(): void {
   if (dismissBtn) {
     dismissBtn.addEventListener("click", () => {
       banner.style.display = "none";
-      sessionStorage.setItem("wavedrop-dismiss-promo", "true");
     });
   }
 }
