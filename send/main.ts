@@ -33,8 +33,7 @@ import {
   MAX_FILE_LABEL,
   OPTICAL_MAX_FILE_BYTES,
   OPTICAL_MAX_FILE_LABEL,
-  WEBRTC_MAX_FILE_BYTES,
-  WEBRTC_MAX_FILE_LABEL,
+  getRadioMaxFileLimit,
   fnv1a,
   packFile,
   packFrame,
@@ -125,7 +124,8 @@ function updateFilePicker(): void {
   const armed = currentMode() === "file" && selectedFile !== null;
   paneFile.classList.toggle("has-file", armed);
   filePickerButton.textContent = armed ? "Stop transfer" : "Select File";
-  const limitLabel = currentTransferTech === "radio" ? WEBRTC_MAX_FILE_LABEL : OPTICAL_MAX_FILE_LABEL;
+  const radioLimit = getRadioMaxFileLimit();
+  const limitLabel = currentTransferTech === "radio" ? radioLimit.label : OPTICAL_MAX_FILE_LABEL;
   filePickerLabel.textContent =
     armed && selectedFile ? `Selected file: ${selectedFile.name}` : `Any file · up to ${limitLabel}`;
 }
@@ -477,8 +477,9 @@ async function selectFile(): Promise<void> {
       showError(`${file.name} is empty — there is nothing to send.`);
       return;
     }
-    if (file.size > WEBRTC_MAX_FILE_BYTES) {
-      showError(`${file.name} is ${formatBytes(file.size)}, over the High-Speed Radio ${WEBRTC_MAX_FILE_LABEL} limit.`);
+    const radioLimit = getRadioMaxFileLimit();
+    if (file.size > radioLimit.bytes) {
+      showError(`${file.name} is ${formatBytes(file.size)}, over the High-Speed Radio ${radioLimit.label} limit.`);
       return;
     }
     await startWebRtcSender(file);
@@ -493,8 +494,9 @@ async function selectFile(): Promise<void> {
     if (file.size === 0) {
       throw new Error(`${file.name} is empty — there is nothing to send.`);
     }
+    const radioLimit = getRadioMaxFileLimit();
     if (file.size > OPTICAL_MAX_FILE_BYTES) {
-      throw new Error(`File exceeds 16MB. High-speed radio mode required for files up to ${WEBRTC_MAX_FILE_LABEL}.`);
+      throw new Error(`File exceeds 16MB. High-speed radio mode required for files up to ${radioLimit.label}.`);
     }
     if (file.size > MAX_FILE_BYTES) {
       throw new Error(`${file.name} is ${formatBytes(file.size)}, over the ${MAX_FILE_LABEL} limit.`);

@@ -16,11 +16,23 @@ export const HEADER_LEN = 20;
 export const OPTICAL_MAX_FILE_BYTES = 16 * 1024 * 1024;
 export const OPTICAL_MAX_FILE_LABEL = `${OPTICAL_MAX_FILE_BYTES / 1024 / 1024} MB`;
 
-export const WEBRTC_MAX_FILE_BYTES = 512 * 1024 * 1024;
-export const WEBRTC_MAX_FILE_LABEL = `${WEBRTC_MAX_FILE_BYTES / 1024 / 1024} MB`;
+export const WEBRTC_WEB_MAX_FILE_BYTES = 64 * 1024 * 1024;
+export const WEBRTC_WEB_MAX_FILE_LABEL = `${WEBRTC_WEB_MAX_FILE_BYTES / 1024 / 1024} MB`;
 
-export const MAX_FILE_BYTES = WEBRTC_MAX_FILE_BYTES;
-export const MAX_FILE_LABEL = WEBRTC_MAX_FILE_LABEL;
+export const WEBRTC_NATIVE_MAX_FILE_BYTES = 512 * 1024 * 1024;
+export const WEBRTC_NATIVE_MAX_FILE_LABEL = `${WEBRTC_NATIVE_MAX_FILE_BYTES / 1024 / 1024} MB`;
+
+export const MAX_FILE_BYTES = WEBRTC_WEB_MAX_FILE_BYTES;
+export const MAX_FILE_LABEL = WEBRTC_WEB_MAX_FILE_LABEL;
+
+export function getRadioMaxFileLimit(): { bytes: number; label: string } {
+  const isNative =
+    typeof window !== "undefined" &&
+    (window as unknown as { AndroidNativeCamera?: unknown }).AndroidNativeCamera !== undefined;
+  return isNative
+    ? { bytes: WEBRTC_NATIVE_MAX_FILE_BYTES, label: WEBRTC_NATIVE_MAX_FILE_LABEL }
+    : { bytes: WEBRTC_WEB_MAX_FILE_BYTES, label: WEBRTC_WEB_MAX_FILE_LABEL };
+}
 /**
  * One place for the number, so the picker label, the rejection message and
  * packFile()'s own error can't drift apart. The HTML pulls it in as the
