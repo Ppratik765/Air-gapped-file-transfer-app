@@ -31,6 +31,7 @@ import { MAX_SNIPPET_BYTES, MAX_SNIPPET_LABEL, packSnippet } from "../shared/sni
 import {
   MAX_FILE_BYTES,
   MAX_FILE_LABEL,
+  OPTICAL_MAX_FILE_BYTES,
   fnv1a,
   packFile,
   packFrame,
@@ -251,6 +252,9 @@ async function selectFile(): Promise<void> {
     // "too large" without a number leaves you guessing by how much.
     if (file.size === 0) {
       throw new Error(`${file.name} is empty — there is nothing to send.`);
+    }
+    if (file.size > OPTICAL_MAX_FILE_BYTES) {
+      throw new Error("File exceeds 16MB. High-speed radio mode required (Coming in Phase 2).");
     }
     if (file.size > MAX_FILE_BYTES) {
       throw new Error(`${file.name} is ${formatBytes(file.size)}, over the ${MAX_FILE_LABEL} limit.`);
