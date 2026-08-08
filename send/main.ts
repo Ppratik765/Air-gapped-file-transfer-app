@@ -32,6 +32,7 @@ import {
   MAX_FILE_BYTES,
   MAX_FILE_LABEL,
   OPTICAL_MAX_FILE_BYTES,
+  OPTICAL_MAX_FILE_LABEL,
   fnv1a,
   packFile,
   packFrame,
@@ -122,8 +123,9 @@ function updateFilePicker(): void {
   const armed = currentMode() === "file" && selectedFile !== null;
   paneFile.classList.toggle("has-file", armed);
   filePickerButton.textContent = armed ? "Stop transfer" : "Select File";
+  const limitLabel = currentTransferTech === "radio" ? MAX_FILE_LABEL : OPTICAL_MAX_FILE_LABEL;
   filePickerLabel.textContent =
-    armed && selectedFile ? `Selected file: ${selectedFile.name}` : `Any file · up to ${MAX_FILE_LABEL}`;
+    armed && selectedFile ? `Selected file: ${selectedFile.name}` : `Any file · up to ${limitLabel}`;
 }
 
 /** Tear the stream down and disarm the picker. The input is cleared so the
@@ -469,9 +471,9 @@ async function main() {
   for (const input of transferTechInputs) {
     input.addEventListener("change", () => {
       currentTransferTech = input.value as "optical" | "radio";
+      updateFilePicker();
       if (currentTransferTech === "radio") {
         stopTransfer();
-        showError("High-Speed WebRTC mode coming soon!");
       } else {
         showError("");
       }
