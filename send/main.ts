@@ -204,6 +204,9 @@ function applyMode(): void {
  * the page idle rather than streaming something stale. Every way of choosing a
  * payload goes through here so the guard can't be subtly wrong in one copy.
  */
+let currentTransferTech: "optical" | "radio" = "optical";
+const transferTechInputs = document.querySelectorAll<HTMLInputElement>('input[name="transfer-tech"]');
+
 async function startSelection(
   status: string,
   prepare: () => Promise<{ name: string; size: number; packed: PackedOpticalFile }>,
@@ -211,6 +214,12 @@ async function startSelection(
   const selectionGeneration = ++generation;
   selectedFile = null;
   stage.hidden = true;
+
+  if (currentTransferTech === "radio") {
+    showError("High-Speed WebRTC mode coming soon!");
+    return;
+  }
+
   setStatus(status);
   try {
     const { name, size, packed } = await prepare();
@@ -302,6 +311,17 @@ async function main() {
     });
     sendSnippetBtn.addEventListener("click", () => void selectSnippet());
     for (const input of modeInputs) input.addEventListener("change", applyMode);
+  }
+  for (const input of transferTechInputs) {
+    input.addEventListener("change", () => {
+      currentTransferTech = input.value as "optical" | "radio";
+      if (currentTransferTech === "radio") {
+        stopTransfer();
+        showError("High-Speed WebRTC mode coming soon!");
+      } else {
+        showError("");
+      }
+    });
   }
   applyMode();
   window.addEventListener("resize", () => resizeDisplay?.());
