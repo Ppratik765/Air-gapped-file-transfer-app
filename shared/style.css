@@ -949,8 +949,23 @@ html, body, .site-header, .site-footer, .transfer-card, .file-picker,
 .send-shell .file-picker,
 .send-shell details.settings,
 .mode-picker,
-.note-composer {
+.note-composer,
+.transfer-tech-group {
   width: 100%;
+}
+
+.transfer-tech-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.transfer-tech-label {
+  color: var(--text-dim);
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .demo-picker {

@@ -37,6 +37,20 @@
         <p>Nothing leaves your device until you scan with a receiver.</p>
       </section>
 
+      <div class="transfer-tech-group" id="transfer-tech-picker" role="radiogroup" aria-label="Transfer Mode">
+        <span class="transfer-tech-label">Transfer Mode</span>
+        <div class="mode-picker">
+          <label>
+            <input type="radio" name="transfer-tech" value="optical" checked />
+            <span>Optical (Secure/Slow)</span>
+          </label>
+          <label>
+            <input type="radio" name="transfer-tech" value="radio" />
+            <span>High-Speed Radio (Large Files)</span>
+          </label>
+        </div>
+      </div>
+
       <div class="mode-picker" id="mode-picker" role="radiogroup" aria-label="What to send">
         <label>
           <input type="radio" name="send-mode" value="file" checked />
