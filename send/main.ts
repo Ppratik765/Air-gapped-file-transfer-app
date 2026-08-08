@@ -247,18 +247,172 @@ async function selectDemo(fileName: string): Promise<void> {
   });
 }
 
+import {
+  createLocalPeerConnection,
+  waitForIceGathering,
+  compressSdp,
+  decompressSdp,
+  sendFileOverDataChannel,
+} from "../shared/webrtc";
+import { drawQrToCanvas } from "../shared/qr-raster";
+import { scanQrFromVideo } from "../shared/qr-scanner";
+
+const paneWebrtc = document.getElementById("pane-webrtc") as HTMLDivElement;
+const webrtcSenderStep1 = document.getElementById("webrtc-sender-step1") as HTMLDivElement;
+const webrtcSenderStep2 = document.getElementById("webrtc-sender-step2") as HTMLDivElement;
+const webrtcSenderStep3 = document.getElementById("webrtc-sender-step3") as HTMLDivElement;
+const webrtcOfferQr = document.getElementById("webrtc-offer-qr") as HTMLCanvasElement;
+const webrtcScanAnswerBtn = document.getElementById("webrtc-scan-answer-btn") as HTMLButtonElement;
+const webrtcSenderVideo = document.getElementById("webrtc-sender-video") as HTMLVideoElement;
+const webrtcCancelScanBtn = document.getElementById("webrtc-cancel-scan-btn") as HTMLButtonElement;
+const webrtcSenderStatus = document.getElementById("webrtc-sender-status") as HTMLParagraphElement;
+const webrtcSenderProgressFill = document.getElementById("webrtc-sender-progress-fill") as HTMLDivElement;
+const webrtcSenderProgressText = document.getElementById("webrtc-sender-progress-text") as HTMLSpanElement;
+const webrtcSenderSpeedText = document.getElementById("webrtc-sender-speed-text") as HTMLSpanElement;
+
+let activeSenderPc: RTCPeerConnection | null = null;
+let activeSenderStream: MediaStream | null = null;
+let senderScanInterval: ReturnType<typeof setInterval> | null = null;
+
+async function startWebRtcSender(file: File): Promise<void> {
+  if (activeSenderPc) {
+    activeSenderPc.close();
+    activeSenderPc = null;
+  }
+  if (senderScanInterval) {
+    clearInterval(senderScanInterval);
+    senderScanInterval = null;
+  }
+
+  paneFile.hidden = true;
+  paneSnippet.hidden = true;
+  stage.hidden = true;
+  if (paneWebrtc) paneWebrtc.hidden = false;
+  if (webrtcSenderStep1) webrtcSenderStep1.hidden = false;
+  if (webrtcSenderStep2) webrtcSenderStep2.hidden = true;
+  if (webrtcSenderStep3) webrtcSenderStep3.hidden = true;
+  setStatus(`Generating WebRTC Offer for ${file.name}…`);
+
+  try {
+    const pc = createLocalPeerConnection();
+    activeSenderPc = pc;
+    const channel = pc.createDataChannel("file-transfer");
+
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    await waitForIceGathering(pc);
+
+    const compressedOffer = await compressSdp(pc.localDescription!.sdp, "OFFER");
+    if (webrtcOfferQr) drawQrToCanvas(compressedOffer, webrtcOfferQr);
+
+    if (webrtcScanAnswerBtn) {
+      webrtcScanAnswerBtn.onclick = async () => {
+        if (webrtcSenderStep1) webrtcSenderStep1.hidden = true;
+        if (webrtcSenderStep2) webrtcSenderStep2.hidden = false;
+
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: "environment", width: { ideal: 960 }, height: { ideal: 720 } },
+          });
+          activeSenderStream = stream;
+          if (webrtcSenderVideo) {
+            webrtcSenderVideo.srcObject = stream;
+            await webrtcSenderVideo.play().catch(() => undefined);
+          }
+
+          senderScanInterval = setInterval(async () => {
+            if (!webrtcSenderVideo) return;
+            const text = await scanQrFromVideo(webrtcSenderVideo);
+            if (text && text.startsWith("WD_ANSWER:")) {
+              if (senderScanInterval) clearInterval(senderScanInterval);
+              stream.getTracks().forEach((t) => t.stop());
+              activeSenderStream = null;
+
+              try {
+                const answerSdp = await decompressSdp(text, "ANSWER");
+                await pc.setRemoteDescription({ type: "answer", sdp: answerSdp });
+                if (webrtcSenderStep2) webrtcSenderStep2.hidden = true;
+                if (webrtcSenderStep3) webrtcSenderStep3.hidden = false;
+                if (webrtcSenderStatus) webrtcSenderStatus.textContent = "Connecting to Receiver peer…";
+              } catch (err) {
+                showError(`Failed to parse Answer QR code: ${err}`);
+              }
+            }
+          }, 150);
+        } catch (err) {
+          showError(`Camera access failed: ${err}`);
+        }
+      };
+    }
+
+    if (webrtcCancelScanBtn) {
+      webrtcCancelScanBtn.onclick = () => {
+        if (senderScanInterval) clearInterval(senderScanInterval);
+        if (activeSenderStream) {
+          activeSenderStream.getTracks().forEach((t) => t.stop());
+          activeSenderStream = null;
+        }
+        if (webrtcSenderStep2) webrtcSenderStep2.hidden = true;
+        if (webrtcSenderStep1) webrtcSenderStep1.hidden = false;
+      };
+    }
+
+    channel.onopen = async () => {
+      if (webrtcSenderStatus) {
+        webrtcSenderStatus.textContent = `Connected! Streaming ${file.name} over direct DataChannel…`;
+      }
+      const startTs = performance.now();
+
+      try {
+        await sendFileOverDataChannel(channel, file, (sentBytes, totalBytes) => {
+          const pct = Math.round((sentBytes / totalBytes) * 100);
+          if (webrtcSenderProgressFill) webrtcSenderProgressFill.style.width = `${pct}%`;
+          const sentMb = (sentBytes / 1024 / 1024).toFixed(1);
+          const totalMb = (totalBytes / 1024 / 1024).toFixed(1);
+          if (webrtcSenderProgressText) {
+            webrtcSenderProgressText.textContent = `${sentMb} / ${totalMb} MB (${pct}%)`;
+          }
+
+          const elapsedSec = (performance.now() - startTs) / 1000;
+          const kbs = elapsedSec > 0 ? sentBytes / 1024 / elapsedSec : 0;
+          if (webrtcSenderSpeedText) {
+            webrtcSenderSpeedText.textContent =
+              kbs > 1024 ? `${(kbs / 1024).toFixed(1)} MB/s` : `${kbs.toFixed(0)} KB/s`;
+          }
+        });
+
+        if (webrtcSenderProgressFill) webrtcSenderProgressFill.style.width = "100%";
+        if (webrtcSenderStatus) {
+          webrtcSenderStatus.textContent = `✔ Transfer complete! ${file.name} sent over WebRTC.`;
+        }
+        setStatus(`✔ Transfer complete! ${file.name} sent over WebRTC.`);
+      } catch (err) {
+        showError(`WebRTC stream error: ${err}`);
+      }
+    };
+  } catch (err) {
+    showError(`Failed to generate WebRTC Offer: ${err}`);
+  }
+}
+
 async function selectFile(): Promise<void> {
   const file = cfgFile.files?.[0];
   if (!file) return;
+
+  if (currentTransferTech === "radio") {
+    if (file.size === 0) {
+      showError(`${file.name} is empty — there is nothing to send.`);
+      return;
+    }
+    await startWebRtcSender(file);
+    updateFilePicker();
+    return;
+  }
 
   // 1465 B (QR v27) is the optimal scannable frame size for screen-to-camera scanning
   cfgBytes.value = "1465";
 
   await startSelection(`preparing ${file.name}…`, async () => {
-    // Checked here, off File.size, rather than after reading the bytes: a file
-    // well past the limit should be refused instantly instead of after the
-    // browser has spent time and memory materialising it. Name the actual size —
-    // "too large" without a number leaves you guessing by how much.
     if (file.size === 0) {
       throw new Error(`${file.name} is empty — there is nothing to send.`);
     }
