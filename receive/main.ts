@@ -150,6 +150,26 @@ for (const input of receiveTechInputs) {
   });
 }
 
+let receiverConnTimeout: ReturnType<typeof setTimeout> | null = null;
+
+function showReceiverHandshakeTimeoutError(): void {
+  if (receiverConnTimeout) {
+    clearTimeout(receiverConnTimeout);
+    receiverConnTimeout = null;
+  }
+  showError("Connection timed out. Devices may not be on the same local network.");
+  if (webrtcReceiverStatus) {
+    webrtcReceiverStatus.innerHTML = `
+      <span style="color: var(--red); font-weight: bold;">Connection Failed / Timed Out</span><br/>
+      <button id="webrtc-receiver-retry-btn" type="button" style="margin-top: 10px; padding: 8px 16px; border-radius: 8px; background: var(--line-bright); color: #fff; font-weight: bold; border: none; cursor: pointer;">Retry Handshake</button>
+    `;
+    const retryBtn = document.getElementById("webrtc-receiver-retry-btn");
+    if (retryBtn) {
+      retryBtn.onclick = () => initWebRtcReceiver();
+    }
+  }
+}
+
 function initWebRtcReceiver() {
   if (activeReceiverPc) {
     activeReceiverPc.close();
@@ -158,6 +178,10 @@ function initWebRtcReceiver() {
   if (receiverScanInterval) {
     clearInterval(receiverScanInterval);
     receiverScanInterval = null;
+  }
+  if (receiverConnTimeout) {
+    clearTimeout(receiverConnTimeout);
+    receiverConnTimeout = null;
   }
 
   if (webrtcReceiverStep1) webrtcReceiverStep1.hidden = false;
@@ -191,6 +215,33 @@ function initWebRtcReceiver() {
               const pc = createLocalPeerConnection();
               activeReceiverPc = pc;
 
+              // WebRTC Lifecycle Event Logging
+              pc.addEventListener("icegatheringstatechange", () => {
+                console.log("[WebRTC Receiver] ICE gathering state:", pc.iceGatheringState);
+              });
+              pc.addEventListener("connectionstatechange", () => {
+                console.log("[WebRTC Receiver] Connection state:", pc.connectionState);
+                if (pc.connectionState === "connected") {
+                  if (receiverConnTimeout) {
+                    clearTimeout(receiverConnTimeout);
+                    receiverConnTimeout = null;
+                  }
+                } else if (pc.connectionState === "failed") {
+                  showReceiverHandshakeTimeoutError();
+                }
+              });
+              pc.addEventListener("iceconnectionstatechange", () => {
+                console.log("[WebRTC Receiver] ICE connection state:", pc.iceConnectionState);
+                if (pc.iceConnectionState === "failed") {
+                  showReceiverHandshakeTimeoutError();
+                }
+              });
+              pc.addEventListener("signalingstatechange", () => {
+                console.log("[WebRTC Receiver] Signaling state:", pc.signalingState);
+              });
+
+              if (webrtcReceiverStatus) webrtcReceiverStatus.textContent = "Gathering local network candidates…";
+
               await pc.setRemoteDescription({ type: "offer", sdp: offerSdp });
               const answer = await pc.createAnswer();
               await pc.setLocalDescription(answer);
@@ -201,13 +252,25 @@ function initWebRtcReceiver() {
 
               if (webrtcReceiverStep1) webrtcReceiverStep1.hidden = true;
               if (webrtcReceiverStep2) webrtcReceiverStep2.hidden = false;
+              if (webrtcReceiverStatus) webrtcReceiverStatus.textContent = "Displaying Answer QR Code (Connecting over local radio…)";
+
+              // Start 10s connection timeout
+              receiverConnTimeout = setTimeout(() => {
+                if (pc.connectionState !== "connected" && pc.iceConnectionState !== "connected") {
+                  showReceiverHandshakeTimeoutError();
+                }
+              }, 10000);
 
               pc.ondatachannel = (event) => {
+                if (receiverConnTimeout) {
+                  clearTimeout(receiverConnTimeout);
+                  receiverConnTimeout = null;
+                }
                 const channel = event.channel;
                 if (webrtcReceiverStep2) webrtcReceiverStep2.hidden = true;
                 if (webrtcReceiverStep3) webrtcReceiverStep3.hidden = false;
                 if (webrtcReceiverStatus) {
-                  webrtcReceiverStatus.textContent = "DataChannel connected! Receiving file stream…";
+                  webrtcReceiverStatus.textContent = "Connected! Transferring data…";
                 }
 
                 let meta: WebRTCFileMetadata | null = null;

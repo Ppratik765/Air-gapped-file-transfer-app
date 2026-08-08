@@ -275,6 +275,25 @@ const webrtcSenderSpeedText = document.getElementById("webrtc-sender-speed-text"
 let activeSenderPc: RTCPeerConnection | null = null;
 let activeSenderStream: MediaStream | null = null;
 let senderScanInterval: ReturnType<typeof setInterval> | null = null;
+let senderConnTimeout: ReturnType<typeof setTimeout> | null = null;
+
+function showSenderHandshakeTimeoutError(file: File): void {
+  if (senderConnTimeout) {
+    clearTimeout(senderConnTimeout);
+    senderConnTimeout = null;
+  }
+  showError("Connection timed out. Devices may not be on the same local network.");
+  if (webrtcSenderStatus) {
+    webrtcSenderStatus.innerHTML = `
+      <span style="color: var(--red); font-weight: bold;">Connection Failed / Timed Out</span><br/>
+      <button id="webrtc-sender-retry-btn" type="button" style="margin-top: 10px; padding: 8px 16px; border-radius: 8px; background: var(--line-bright); color: #fff; font-weight: bold; border: none; cursor: pointer;">Retry Handshake</button>
+    `;
+    const retryBtn = document.getElementById("webrtc-sender-retry-btn");
+    if (retryBtn) {
+      retryBtn.onclick = () => void startWebRtcSender(file);
+    }
+  }
+}
 
 async function startWebRtcSender(file: File): Promise<void> {
   if (activeSenderPc) {
@@ -285,6 +304,10 @@ async function startWebRtcSender(file: File): Promise<void> {
     clearInterval(senderScanInterval);
     senderScanInterval = null;
   }
+  if (senderConnTimeout) {
+    clearTimeout(senderConnTimeout);
+    senderConnTimeout = null;
+  }
 
   paneFile.hidden = true;
   paneSnippet.hidden = true;
@@ -293,11 +316,39 @@ async function startWebRtcSender(file: File): Promise<void> {
   if (webrtcSenderStep1) webrtcSenderStep1.hidden = false;
   if (webrtcSenderStep2) webrtcSenderStep2.hidden = true;
   if (webrtcSenderStep3) webrtcSenderStep3.hidden = true;
-  setStatus(`Generating WebRTC Offer for ${file.name}…`);
+
+  setStatus("Gathering local network candidates…");
+  if (webrtcSenderStatus) webrtcSenderStatus.textContent = "Gathering local network candidates…";
 
   try {
     const pc = createLocalPeerConnection();
     activeSenderPc = pc;
+
+    // WebRTC Lifecycle Event Logging
+    pc.addEventListener("icegatheringstatechange", () => {
+      console.log("[WebRTC Sender] ICE gathering state:", pc.iceGatheringState);
+    });
+    pc.addEventListener("connectionstatechange", () => {
+      console.log("[WebRTC Sender] Connection state:", pc.connectionState);
+      if (pc.connectionState === "connected") {
+        if (senderConnTimeout) {
+          clearTimeout(senderConnTimeout);
+          senderConnTimeout = null;
+        }
+      } else if (pc.connectionState === "failed") {
+        showSenderHandshakeTimeoutError(file);
+      }
+    });
+    pc.addEventListener("iceconnectionstatechange", () => {
+      console.log("[WebRTC Sender] ICE connection state:", pc.iceConnectionState);
+      if (pc.iceConnectionState === "failed") {
+        showSenderHandshakeTimeoutError(file);
+      }
+    });
+    pc.addEventListener("signalingstatechange", () => {
+      console.log("[WebRTC Sender] Signaling state:", pc.signalingState);
+    });
+
     const channel = pc.createDataChannel("file-transfer");
 
     const offer = await pc.createOffer();
@@ -307,10 +358,13 @@ async function startWebRtcSender(file: File): Promise<void> {
     const compressedOffer = await compressSdp(pc.localDescription!.sdp, "OFFER");
     if (webrtcOfferQr) drawQrToCanvas(compressedOffer, webrtcOfferQr);
 
+    setStatus("Displaying Offer QR Code");
+
     if (webrtcScanAnswerBtn) {
       webrtcScanAnswerBtn.onclick = async () => {
         if (webrtcSenderStep1) webrtcSenderStep1.hidden = true;
         if (webrtcSenderStep2) webrtcSenderStep2.hidden = false;
+        setStatus("Scan Answer QR Code");
 
         try {
           const stream = await navigator.mediaDevices.getUserMedia({
@@ -335,7 +389,16 @@ async function startWebRtcSender(file: File): Promise<void> {
                 await pc.setRemoteDescription({ type: "answer", sdp: answerSdp });
                 if (webrtcSenderStep2) webrtcSenderStep2.hidden = true;
                 if (webrtcSenderStep3) webrtcSenderStep3.hidden = false;
-                if (webrtcSenderStatus) webrtcSenderStatus.textContent = "Connecting to Receiver peer…";
+
+                if (webrtcSenderStatus) webrtcSenderStatus.textContent = "Connecting over local radio…";
+                setStatus("Connecting over local radio…");
+
+                // Start 10s connection timeout
+                senderConnTimeout = setTimeout(() => {
+                  if (pc.connectionState !== "connected" && pc.iceConnectionState !== "connected") {
+                    showSenderHandshakeTimeoutError(file);
+                  }
+                }, 10000);
               } catch (err) {
                 showError(`Failed to parse Answer QR code: ${err}`);
               }
@@ -356,13 +419,19 @@ async function startWebRtcSender(file: File): Promise<void> {
         }
         if (webrtcSenderStep2) webrtcSenderStep2.hidden = true;
         if (webrtcSenderStep1) webrtcSenderStep1.hidden = false;
+        setStatus("Displaying Offer QR Code");
       };
     }
 
     channel.onopen = async () => {
-      if (webrtcSenderStatus) {
-        webrtcSenderStatus.textContent = `Connected! Streaming ${file.name} over direct DataChannel…`;
+      if (senderConnTimeout) {
+        clearTimeout(senderConnTimeout);
+        senderConnTimeout = null;
       }
+      if (webrtcSenderStatus) {
+        webrtcSenderStatus.textContent = `Connected! Transferring data (${file.name})…`;
+      }
+      setStatus(`Connected! Transferring data (${file.name})…`);
       const startTs = performance.now();
 
       try {
@@ -378,6 +447,10 @@ async function startWebRtcSender(file: File): Promise<void> {
           const elapsedSec = (performance.now() - startTs) / 1000;
           const kbs = elapsedSec > 0 ? sentBytes / 1024 / elapsedSec : 0;
           if (webrtcSenderSpeedText) {
+            webrtcSenderSpeedText.textContent =
+              kbs > 1024 ? `${(kbs / 1024).toFixed(1)} MB/s` : `${kbs.toFixed(0)} KB/s`;
+          }
+        });
             webrtcSenderSpeedText.textContent =
               kbs > 1024 ? `${(kbs / 1024).toFixed(1)} MB/s` : `${kbs.toFixed(0)} KB/s`;
           }
