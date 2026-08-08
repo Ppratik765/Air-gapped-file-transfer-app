@@ -126,7 +126,11 @@ let receiverScanInterval: ReturnType<typeof setInterval> | null = null;
 function stopOpticalCamera() {
   if (stream) {
     stream.getTracks().forEach((t) => t.stop());
-    stream = undefined;
+    stream = null;
+  }
+  if (activeReceiverStream) {
+    activeReceiverStream.getTracks().forEach((t) => t.stop());
+    activeReceiverStream = null;
   }
 }
 

@@ -3,7 +3,7 @@
  */
 
 import { readBarcodes, prepareZXingModule } from "zxing-wasm/reader";
-import wasmUrl from "zxing-wasm/zxing_reader.wasm?url";
+import wasmUrl from "../receive/wasm-url";
 
 let wasmPrepared = false;
 
