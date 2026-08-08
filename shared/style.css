@@ -1530,3 +1530,113 @@ html, body, .site-header, .site-footer, .transfer-card, .file-picker,
     max-width: 100%;
   }
 }
+
+/* WebRTC Handshake & Transfer Styles */
+.webrtc-container {
+  width: 100%;
+  margin-top: 16px;
+}
+
+.webrtc-card {
+  background: var(--panel);
+  border: 1px solid var(--line-bright);
+  border-radius: 18px;
+  padding: clamp(20px, 4vw, 32px);
+  box-shadow: 0 4px 20px rgba(255, 159, 28, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.webrtc-title {
+  margin: 0;
+  color: var(--text);
+  font-size: clamp(20px, 3vw, 28px);
+  letter-spacing: -0.03em;
+  text-align: center;
+}
+
+.webrtc-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 14px;
+}
+
+.webrtc-step-num {
+  align-self: center;
+  color: var(--line-bright);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  background: rgba(255, 159, 28, 0.12);
+  padding: 4px 12px;
+  border-radius: 999px;
+}
+
+.webrtc-step-desc {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+  max-width: 480px;
+}
+
+.webrtc-qr-box {
+  background: #ffffff;
+  padding: 16px;
+  border-radius: 16px;
+  border: 2px solid var(--line);
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.webrtc-qr-box canvas {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+.webrtc-scanner-box {
+  width: 100%;
+  max-width: 480px;
+  aspect-ratio: 4 / 3;
+  background: #000000;
+  border-radius: 16px;
+  overflow: hidden;
+  position: relative;
+  border: 2px solid var(--line-bright);
+}
+
+.webrtc-scanner-box video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.webrtc-progress-bar {
+  width: 100%;
+  height: 14px;
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 999px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+}
+
+.webrtc-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), var(--line-bright));
+  border-radius: 999px;
+  transition: width 0.2s ease;
+}
+
+.webrtc-stats-row {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  color: var(--text-dim);
+  font-size: 13px;
+  font-weight: 700;
+}
