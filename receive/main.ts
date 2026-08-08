@@ -15,6 +15,15 @@ import { LTDecoder } from "../shared/fountain";
 import { initTheme } from "../shared/theme";
 import { initAppPromoBanner } from "../shared/app-promo";
 import {
+  createLocalPeerConnection,
+  waitForIceGathering,
+  compressSdp,
+  decompressSdp,
+  type WebRTCFileMetadata,
+} from "../shared/webrtc";
+import { drawQrToCanvas } from "../shared/qr-raster";
+import { scanQrFromVideo } from "../shared/qr-scanner";
+import {
   estimateTransferProgress,
   expectedFountainOverhead,
   formatDuration,
@@ -94,6 +103,173 @@ document.querySelector('.mode-nav a[href="../receive/"]')?.setAttribute("aria-cu
 initAppPromoBanner();
 
 const { setStatus, showError } = statusLine(stats);
+
+const receiveTechInputs = document.querySelectorAll<HTMLInputElement>('input[name="receive-tech"]');
+const webrtcReceivePanel = document.getElementById("webrtc-receive-panel") as HTMLDivElement;
+const webrtcReceiverStep1 = document.getElementById("webrtc-receiver-step1") as HTMLDivElement;
+const webrtcReceiverStep2 = document.getElementById("webrtc-receiver-step2") as HTMLDivElement;
+const webrtcReceiverStep3 = document.getElementById("webrtc-receiver-step3") as HTMLDivElement;
+const webrtcReceiverStartBtn = document.getElementById("webrtc-receiver-start-btn") as HTMLButtonElement;
+const webrtcReceiverScannerBox = document.getElementById("webrtc-receiver-scanner-box") as HTMLDivElement;
+const webrtcReceiverVideo = document.getElementById("webrtc-receiver-video") as HTMLVideoElement;
+const webrtcAnswerQr = document.getElementById("webrtc-answer-qr") as HTMLCanvasElement;
+const webrtcReceiverStatus = document.getElementById("webrtc-receiver-status") as HTMLParagraphElement;
+const webrtcReceiverProgressFill = document.getElementById("webrtc-receiver-progress-fill") as HTMLDivElement;
+const webrtcReceiverProgressText = document.getElementById("webrtc-receiver-progress-text") as HTMLSpanElement;
+const webrtcReceiverSpeedText = document.getElementById("webrtc-receiver-speed-text") as HTMLSpanElement;
+
+let currentReceiveTech: "optical" | "radio" = "optical";
+let activeReceiverPc: RTCPeerConnection | null = null;
+let activeReceiverStream: MediaStream | null = null;
+let receiverScanInterval: ReturnType<typeof setInterval> | null = null;
+
+function stopOpticalCamera() {
+  if (stream) {
+    stream.getTracks().forEach((t) => t.stop());
+    stream = undefined;
+  }
+}
+
+for (const input of receiveTechInputs) {
+  input.addEventListener("change", () => {
+    currentReceiveTech = input.value as "optical" | "radio";
+    if (currentReceiveTech === "radio") {
+      stopOpticalCamera();
+      startBtn.style.display = "none";
+      preview.style.display = "none";
+      if (webrtcReceivePanel) webrtcReceivePanel.hidden = false;
+      initWebRtcReceiver();
+    } else {
+      if (webrtcReceivePanel) webrtcReceivePanel.hidden = true;
+      startBtn.style.display = "";
+    }
+  });
+}
+
+function initWebRtcReceiver() {
+  if (activeReceiverPc) {
+    activeReceiverPc.close();
+    activeReceiverPc = null;
+  }
+  if (receiverScanInterval) {
+    clearInterval(receiverScanInterval);
+    receiverScanInterval = null;
+  }
+
+  if (webrtcReceiverStep1) webrtcReceiverStep1.hidden = false;
+  if (webrtcReceiverStep2) webrtcReceiverStep2.hidden = true;
+  if (webrtcReceiverStep3) webrtcReceiverStep3.hidden = true;
+  if (webrtcReceiverScannerBox) webrtcReceiverScannerBox.hidden = true;
+
+  if (webrtcReceiverStartBtn) {
+    webrtcReceiverStartBtn.onclick = async () => {
+      if (webrtcReceiverScannerBox) webrtcReceiverScannerBox.hidden = false;
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: "environment", width: { ideal: 960 }, height: { ideal: 720 } },
+        });
+        activeReceiverStream = stream;
+        if (webrtcReceiverVideo) {
+          webrtcReceiverVideo.srcObject = stream;
+          await webrtcReceiverVideo.play().catch(() => undefined);
+        }
+
+        receiverScanInterval = setInterval(async () => {
+          if (!webrtcReceiverVideo) return;
+          const text = await scanQrFromVideo(webrtcReceiverVideo);
+          if (text && text.startsWith("WD_OFFER:")) {
+            if (receiverScanInterval) clearInterval(receiverScanInterval);
+            stream.getTracks().forEach((t) => t.stop());
+            activeReceiverStream = null;
+
+            try {
+              const offerSdp = await decompressSdp(text, "OFFER");
+              const pc = createLocalPeerConnection();
+              activeReceiverPc = pc;
+
+              await pc.setRemoteDescription({ type: "offer", sdp: offerSdp });
+              const answer = await pc.createAnswer();
+              await pc.setLocalDescription(answer);
+              await waitForIceGathering(pc);
+
+              const compressedAnswer = await compressSdp(pc.localDescription!.sdp, "ANSWER");
+              if (webrtcAnswerQr) drawQrToCanvas(compressedAnswer, webrtcAnswerQr);
+
+              if (webrtcReceiverStep1) webrtcReceiverStep1.hidden = true;
+              if (webrtcReceiverStep2) webrtcReceiverStep2.hidden = false;
+
+              pc.ondatachannel = (event) => {
+                const channel = event.channel;
+                if (webrtcReceiverStep2) webrtcReceiverStep2.hidden = true;
+                if (webrtcReceiverStep3) webrtcReceiverStep3.hidden = false;
+                if (webrtcReceiverStatus) {
+                  webrtcReceiverStatus.textContent = "DataChannel connected! Receiving file stream…";
+                }
+
+                let meta: WebRTCFileMetadata | null = null;
+                const chunks: ArrayBuffer[] = [];
+                let receivedBytes = 0;
+                const startTs = performance.now();
+
+                channel.binaryType = "arraybuffer";
+                channel.onmessage = (evt) => {
+                  if (typeof evt.data === "string") {
+                    try {
+                      meta = JSON.parse(evt.data) as WebRTCFileMetadata;
+                      if (webrtcReceiverStatus) {
+                        webrtcReceiverStatus.textContent = `Receiving ${meta.name} (${(meta.size / 1024 / 1024).toFixed(1)} MB)…`;
+                      }
+                    } catch {
+                      // Plain text message
+                    }
+                    return;
+                  }
+
+                  const chunk = evt.data as ArrayBuffer;
+                  chunks.push(chunk);
+                  receivedBytes += chunk.byteLength;
+
+                  if (meta) {
+                    const pct = Math.min(100, Math.round((receivedBytes / meta.size) * 100));
+                    if (webrtcReceiverProgressFill) webrtcReceiverProgressFill.style.width = `${pct}%`;
+                    const recMb = (receivedBytes / 1024 / 1024).toFixed(1);
+                    const totalMb = (meta.size / 1024 / 1024).toFixed(1);
+                    if (webrtcReceiverProgressText) {
+                      webrtcReceiverProgressText.textContent = `${recMb} / ${totalMb} MB (${pct}%)`;
+                    }
+
+                    const elapsedSec = (performance.now() - startTs) / 1000;
+                    const kbs = elapsedSec > 0 ? receivedBytes / 1024 / elapsedSec : 0;
+                    if (webrtcReceiverSpeedText) {
+                      webrtcReceiverSpeedText.textContent =
+                        kbs > 1024 ? `${(kbs / 1024).toFixed(1)} MB/s` : `${kbs.toFixed(0)} KB/s`;
+                    }
+
+                    if (receivedBytes >= meta.size) {
+                      if (webrtcReceiverProgressFill) webrtcReceiverProgressFill.style.width = "100%";
+                      if (webrtcReceiverStatus) {
+                        webrtcReceiverStatus.textContent = `✔ Transfer 100% complete! Downloaded ${meta.name}.`;
+                      }
+                      const blob = new Blob(chunks, { type: meta.mimeType || "application/octet-stream" });
+                      const a = document.createElement("a");
+                      a.href = URL.createObjectURL(blob);
+                      a.download = meta.name;
+                      a.click();
+                    }
+                  }
+                };
+              };
+            } catch (err) {
+              showError(`Failed to process WebRTC Offer: ${err}`);
+            }
+          }
+        }, 150);
+      } catch (err) {
+        showError(`Camera access failed: ${err}`);
+      }
+    };
+  }
+}
 
 // The toast asks one question; the answers live in the dialog. The tip list is
 // built here rather than in the HTML so its numbers stay tied to the shared
