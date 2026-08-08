@@ -485,18 +485,20 @@ html, body, .site-header, .site-footer, .transfer-card, .file-picker,
 
 .app-promo-apk-btn {
   background: #ffffff;
-  color: var(--text);
+  color: #121212;
   padding: 5px 12px;
   border-radius: 6px;
   font-size: 12px;
   font-weight: 800;
   text-decoration: none;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
   transition: transform 0.15s ease, background-color 0.15s ease;
 }
 
 .app-promo-apk-btn:hover {
   transform: translateY(-1px);
-  background: var(--panel);
+  background: #f0f0f0;
+  color: #000000;
 }
 
 .app-promo-dismiss-btn {
