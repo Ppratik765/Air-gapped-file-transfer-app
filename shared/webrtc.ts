@@ -11,11 +11,32 @@ export interface WebRTCFileMetadata {
 }
 
 /**
+ * Trim non-essential attributes from raw SDP string to reduce QR payload size.
+ */
+export function trimSdp(sdp: string): string {
+  const lines = sdp.split(/\r?\n/);
+  const trimmed = lines.filter((line) => {
+    const l = line.trim();
+    if (!l) return false;
+    if (l.startsWith("a=extmap:")) return false;
+    if (l.startsWith("a=extmap-allow-mixed")) return false;
+    if (l.startsWith("a=msid-semantic:")) return false;
+    if (l.startsWith("a=rtcp-fb:")) return false;
+    if (l.startsWith("a=fmtp:")) return false;
+    if (l.startsWith("a=rtpmap:")) return false;
+    if (l.startsWith("a=ssrc:")) return false;
+    return true;
+  });
+  return trimmed.join("\r\n");
+}
+
+/**
  * Compress an SDP string using browser CompressionStream (deflate-raw) and
  * encode to Base64 with prefix (e.g. WD_OFFER:... or WD_ANSWER:...).
  */
 export async function compressSdp(sdp: string, prefix: "OFFER" | "ANSWER"): Promise<string> {
-  const textBytes = new TextEncoder().encode(sdp);
+  const cleanSdp = trimSdp(sdp);
+  const textBytes = new TextEncoder().encode(cleanSdp);
   let compressedBuffer: ArrayBuffer;
 
   if (typeof CompressionStream !== "undefined") {
@@ -100,18 +121,32 @@ export function waitForIceGathering(pc: RTCPeerConnection, timeoutMs = 1500): Pr
       return;
     }
 
-    const timer = setTimeout(() => {
+    let resolved = false;
+    const cleanup = () => {
+      if (resolved) return;
+      resolved = true;
+      clearTimeout(timer);
+      pc.removeEventListener("icegatheringstatechange", checkState);
+      pc.removeEventListener("icecandidate", onCandidate);
       resolve();
-    }, timeoutMs);
+    };
+
+    const timer = setTimeout(cleanup, timeoutMs);
 
     const checkState = () => {
       if (pc.iceGatheringState === "complete") {
-        clearTimeout(timer);
-        pc.removeEventListener("icegatheringstatechange", checkState);
-        resolve();
+        cleanup();
       }
     };
+
+    const onCandidate = (e: RTCPeerConnectionIceEvent) => {
+      if (e.candidate === null || pc.iceGatheringState === "complete") {
+        cleanup();
+      }
+    };
+
     pc.addEventListener("icegatheringstatechange", checkState);
+    pc.addEventListener("icecandidate", onCandidate);
   });
 }
 
