@@ -444,10 +444,75 @@ details.settings input[type="range"] {
 }
 
 html, body, .site-header, .site-footer, .transfer-card, .file-picker,
-.help-dialog, .settings, input, button, select, textarea, .mode-nav, .brand {
+.help-dialog, .settings, input, button, select, textarea, .mode-nav, .brand, .app-promo-banner {
   transition: background-color 0.35s cubic-bezier(0.4, 0, 0.2, 1),
               border-color 0.35s cubic-bezier(0.4, 0, 0.2, 1),
               color 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Native App Promotion Banner */
+.app-promo-banner {
+  width: 100%;
+  background: var(--line-bright);
+  color: #ffffff;
+  padding: 10px 16px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
+  position: relative;
+  z-index: 10;
+}
+
+.app-promo-content {
+  max-width: 1120px;
+  margin: 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+}
+
+.app-promo-text {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.app-promo-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.app-promo-apk-btn {
+  background: #ffffff;
+  color: var(--text);
+  padding: 5px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 800;
+  text-decoration: none;
+  transition: transform 0.15s ease, background-color 0.15s ease;
+}
+
+.app-promo-apk-btn:hover {
+  transform: translateY(-1px);
+  background: var(--panel);
+}
+
+.app-promo-dismiss-btn {
+  background: rgba(0, 0, 0, 0.2);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.app-promo-dismiss-btn:hover {
+  background: rgba(0, 0, 0, 0.35);
 }
 
 .header-right {
