@@ -579,9 +579,8 @@ async function main() {
     sendSnippetBtn.addEventListener("click", () => void selectSnippet());
     for (const input of modeInputs) input.addEventListener("change", applyMode);
   }
-    if (webrtcSenderVideo) {
-      bindTapToFocus(webrtcSenderVideo, () => activeSenderStream);
-    }
+  if (webrtcSenderVideo) {
+    bindTapToFocus(webrtcSenderVideo, () => activeSenderStream);
   }
   for (const input of transferTechInputs) {
     input.addEventListener("change", () => {
