@@ -40,6 +40,55 @@
           </div>
           <div class="hint status-line" id="stats">Ready to scan a file or text stream</div>
         </div>
+        <div class="transfer-tech-group" id="receive-tech-picker" role="radiogroup" aria-label="Receive Mode">
+          <span class="transfer-tech-label">Receive Mode</span>
+          <div class="mode-picker">
+            <label>
+              <input type="radio" name="receive-tech" value="optical" checked />
+              <span>Optical Stream (Camera)</span>
+            </label>
+            <label>
+              <input type="radio" name="receive-tech" value="radio" />
+              <span>High-Speed Radio (WebRTC)</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="webrtc-container" id="webrtc-receive-panel" hidden>
+          <div class="webrtc-card">
+            <h2 class="webrtc-title">High-Speed Air-Gapped WebRTC Receive</h2>
+            
+            <div class="webrtc-step" id="webrtc-receiver-step1">
+              <span class="webrtc-step-num">Step 1</span>
+              <p class="webrtc-step-desc">Scan the Sender's <strong>Offer QR Code</strong> using your camera.</p>
+              <button id="webrtc-receiver-start-btn" class="primary-button" type="button">Start Camera to Scan Offer QR</button>
+              <div class="webrtc-scanner-box" id="webrtc-receiver-scanner-box" hidden>
+                <video id="webrtc-receiver-video" autoplay playsinline muted></video>
+              </div>
+            </div>
+
+            <div class="webrtc-step" id="webrtc-receiver-step2" hidden>
+              <span class="webrtc-step-num">Step 2</span>
+              <p class="webrtc-step-desc">Offer scanned! Show this <strong>Answer QR Code</strong> to the Sender device to connect.</p>
+              <div class="webrtc-qr-box">
+                <canvas id="webrtc-answer-qr" width="300" height="300"></canvas>
+              </div>
+            </div>
+
+            <div class="webrtc-step" id="webrtc-receiver-step3" hidden>
+              <span class="webrtc-step-num">Step 3</span>
+              <p class="webrtc-step-desc" id="webrtc-receiver-status">Connected! Receiving binary stream over direct WebRTC DataChannel…</p>
+              <div class="webrtc-progress-bar">
+                <div class="webrtc-progress-fill" id="webrtc-receiver-progress-fill" style="width: 0%;"></div>
+              </div>
+              <div class="webrtc-stats-row">
+                <span id="webrtc-receiver-progress-text">0 / 0 MB (0%)</span>
+                <span id="webrtc-receiver-speed-text">0 KB/s</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <button id="start">Start camera</button>
         <!-- The zone exists so the toast can hang just above the camera box:
              .preview clips its children (overflow: hidden), this doesn't. -->

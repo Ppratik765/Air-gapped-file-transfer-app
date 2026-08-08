@@ -84,6 +84,41 @@
         <button id="send-snippet" type="button">Start text stream</button>
       </div>
 
+      <div class="webrtc-container" id="pane-webrtc" hidden>
+        <div class="webrtc-card">
+          <h2 class="webrtc-title">High-Speed Air-Gapped WebRTC Transfer</h2>
+          <div class="webrtc-step" id="webrtc-sender-step1">
+            <span class="webrtc-step-num">Step 1</span>
+            <p class="webrtc-step-desc">Scan this <strong>Offer QR Code</strong> using the Receiver device.</p>
+            <div class="webrtc-qr-box">
+              <canvas id="webrtc-offer-qr" width="300" height="300"></canvas>
+            </div>
+            <button id="webrtc-scan-answer-btn" class="primary-button" type="button">Scan Receiver's Answer QR Code</button>
+          </div>
+
+          <div class="webrtc-step" id="webrtc-sender-step2" hidden>
+            <span class="webrtc-step-num">Step 2</span>
+            <p class="webrtc-step-desc">Point your camera at the <strong>Answer QR Code</strong> displayed on the Receiver device.</p>
+            <div class="webrtc-scanner-box" id="webrtc-sender-scanner-box">
+              <video id="webrtc-sender-video" autoplay playsinline muted></video>
+            </div>
+            <button id="webrtc-cancel-scan-btn" class="secondary-button" type="button">Cancel Camera</button>
+          </div>
+
+          <div class="webrtc-step" id="webrtc-sender-step3" hidden>
+            <span class="webrtc-step-num">Step 3</span>
+            <p class="webrtc-step-desc" id="webrtc-sender-status">Connected! Streaming file over direct WebRTC DataChannel…</p>
+            <div class="webrtc-progress-bar">
+              <div class="webrtc-progress-fill" id="webrtc-sender-progress-fill" style="width: 0%;"></div>
+            </div>
+            <div class="webrtc-stats-row">
+              <span id="webrtc-sender-progress-text">0 / 0 MB (0%)</span>
+              <span id="webrtc-sender-speed-text">0 KB/s</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div class="stage" id="stage" hidden><canvas id="qr" width="16" height="16"></canvas></div>
       <details class="settings">
         <summary>Transfer settings</summary>
