@@ -14,6 +14,7 @@
 
 import QRCode from "qrcode";
 import { initTheme } from "../shared/theme";
+import { initAppPromoBanner } from "../shared/app-promo";
 import { fitQrDisplaySize } from "../shared/display";
 import { rasterizeQr } from "../shared/qr-raster";
 import { formatBytes } from "../shared/format";
@@ -269,6 +270,7 @@ async function selectSnippet(): Promise<void> {
 
 async function main() {
   initTheme();
+  initAppPromoBanner();
   // Both bounds come from MAX_SNIPPET_BYTES so they can't drift apart. maxLength
   // counts UTF-16 units and the real check counts UTF-8 bytes, which are never
   // fewer — so this is a loose guard and packSnippet() remains authoritative.

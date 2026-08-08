@@ -13,6 +13,7 @@
 
 import { LTDecoder } from "../shared/fountain";
 import { initTheme } from "../shared/theme";
+import { initAppPromoBanner } from "../shared/app-promo";
 import {
   estimateTransferProgress,
   expectedFountainOverhead,
@@ -90,6 +91,7 @@ initTheme();
 // marks its own link. Optional because the standalone build swaps the nav for
 // a badge. Same story on the sender.
 document.querySelector('.mode-nav a[href="../receive/"]')?.setAttribute("aria-current", "page");
+initAppPromoBanner();
 
 const { setStatus, showError } = statusLine(stats);
 
