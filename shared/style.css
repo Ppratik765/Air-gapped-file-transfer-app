@@ -1651,3 +1651,25 @@ html, body, .site-header, .site-footer, .transfer-card, .file-picker,
   font-size: 13px;
   font-weight: 700;
 }
+
+/* Animated Camera Focus Reticle */
+.camera-focus-reticle {
+  position: absolute;
+  width: 56px;
+  height: 56px;
+  margin-left: -28px;
+  margin-top: -28px;
+  border: 2px solid #f59e0b;
+  box-shadow: 0 0 14px rgba(245, 158, 11, 0.85), inset 0 0 10px rgba(245, 158, 11, 0.45);
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 1000;
+  transform: scale(1.7);
+  opacity: 0;
+  transition: transform 0.22s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.22s ease-out;
+}
+
+.camera-focus-reticle.active {
+  transform: scale(1);
+  opacity: 1;
+}

@@ -43,6 +43,7 @@ import {
 import { statusLine } from "../shared/status-line";
 import { requestScreenWakeLock } from "../shared/wake-lock";
 import { wireShareDialog } from "../shared/share-dialog";
+import { bindTapToFocus } from "../shared/camera-focus";
 
 const MARGIN = 4; // quiet-zone modules
 const LOOKAHEAD = 3;
@@ -140,8 +141,41 @@ function stopTransfer(): void {
   stage.hidden = true;
   showStreamPanels(false);
   cfgFile.value = "";
+
+  // Complete WebRTC cleanup
+  if (activeSenderPc) {
+    activeSenderPc.close();
+    activeSenderPc = null;
+  }
+  if (senderScanInterval) {
+    clearInterval(senderScanInterval);
+    senderScanInterval = null;
+  }
+  if (senderConnTimeout) {
+    clearTimeout(senderConnTimeout);
+    senderConnTimeout = null;
+  }
+  if (activeSenderStream) {
+    activeSenderStream.getTracks().forEach((t) => t.stop());
+    activeSenderStream = null;
+  }
+  if (webrtcSenderVideo) {
+    webrtcSenderVideo.srcObject = null;
+  }
+  if (paneWebrtc) paneWebrtc.hidden = true;
+  if (webrtcSenderStep1) webrtcSenderStep1.hidden = true;
+  if (webrtcSenderStep2) webrtcSenderStep2.hidden = true;
+  if (webrtcSenderStep3) webrtcSenderStep3.hidden = true;
+  if (webrtcOfferQr) {
+    const ctx = webrtcOfferQr.getContext("2d");
+    if (ctx) ctx.clearRect(0, 0, webrtcOfferQr.width, webrtcOfferQr.height);
+  }
+  if (webrtcSenderProgressFill) webrtcSenderProgressFill.style.width = "0%";
+  if (webrtcSenderProgressText) webrtcSenderProgressText.textContent = "0 MB / 0 MB (0%)";
+  if (webrtcSenderSpeedText) webrtcSenderSpeedText.textContent = "0 KB/s";
+
   updateFilePicker();
-  setStatus("Choose a file to begin");
+  setStatus(currentMode() === "snippet" ? "Paste or type some text to begin" : "Choose a file to begin");
 }
 
 /** Tap the code to fill the screen with it — a bigger physical code lets the
@@ -545,15 +579,14 @@ async function main() {
     sendSnippetBtn.addEventListener("click", () => void selectSnippet());
     for (const input of modeInputs) input.addEventListener("change", applyMode);
   }
+    if (webrtcSenderVideo) {
+      bindTapToFocus(webrtcSenderVideo, () => activeSenderStream);
+    }
+  }
   for (const input of transferTechInputs) {
     input.addEventListener("change", () => {
       currentTransferTech = input.value as "optical" | "radio";
-      updateFilePicker();
-      if (currentTransferTech === "radio") {
-        stopTransfer();
-      } else {
-        showError("");
-      }
+      stopTransfer();
     });
   }
   applyMode();

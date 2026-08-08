@@ -43,6 +43,7 @@ import {
 import { NO_SIGNAL_HINT_FRAME_BYTES, NO_SIGNAL_HINT_TX_FPS } from "../shared/send-settings";
 import { statusLine } from "../shared/status-line";
 import { requestScreenWakeLock } from "../shared/wake-lock";
+import { bindTapToFocus } from "../shared/camera-focus";
 import { applyAdvancedConstraint, probeCameraCapabilities } from "../shared/platform";
 import { closeOnBackdropClick } from "../shared/dialog";
 
@@ -134,6 +135,40 @@ function stopOpticalCamera() {
   }
 }
 
+function resetWebRtcReceiverUI(): void {
+  if (activeReceiverPc) {
+    activeReceiverPc.close();
+    activeReceiverPc = null;
+  }
+  if (receiverScanInterval) {
+    clearInterval(receiverScanInterval);
+    receiverScanInterval = null;
+  }
+  if (receiverConnTimeout) {
+    clearTimeout(receiverConnTimeout);
+    receiverConnTimeout = null;
+  }
+  if (activeReceiverStream) {
+    activeReceiverStream.getTracks().forEach((t) => t.stop());
+    activeReceiverStream = null;
+  }
+  if (webrtcReceiverVideo) {
+    webrtcReceiverVideo.srcObject = null;
+  }
+  if (webrtcReceivePanel) webrtcReceivePanel.hidden = true;
+  if (webrtcReceiverStep1) webrtcReceiverStep1.hidden = true;
+  if (webrtcReceiverStep2) webrtcReceiverStep2.hidden = true;
+  if (webrtcReceiverStep3) webrtcReceiverStep3.hidden = true;
+  if (webrtcReceiverScannerBox) webrtcReceiverScannerBox.hidden = true;
+  if (webrtcAnswerQr) {
+    const ctx = webrtcAnswerQr.getContext("2d");
+    if (ctx) ctx.clearRect(0, 0, webrtcAnswerQr.width, webrtcAnswerQr.height);
+  }
+  if (webrtcReceiverProgressFill) webrtcReceiverProgressFill.style.width = "0%";
+  if (webrtcReceiverProgressText) webrtcReceiverProgressText.textContent = "0 MB / 0 MB (0%)";
+  if (webrtcReceiverSpeedText) webrtcReceiverSpeedText.textContent = "0 KB/s";
+}
+
 for (const input of receiveTechInputs) {
   input.addEventListener("change", () => {
     currentReceiveTech = input.value as "optical" | "radio";
@@ -144,8 +179,9 @@ for (const input of receiveTechInputs) {
       if (webrtcReceivePanel) webrtcReceivePanel.hidden = false;
       initWebRtcReceiver();
     } else {
-      if (webrtcReceivePanel) webrtcReceivePanel.hidden = true;
+      resetWebRtcReceiverUI();
       startBtn.style.display = "";
+      setStatus("Tap start camera to begin");
     }
   });
 }
@@ -200,6 +236,7 @@ function initWebRtcReceiver() {
         if (webrtcReceiverVideo) {
           webrtcReceiverVideo.srcObject = stream;
           await webrtcReceiverVideo.play().catch(() => undefined);
+          bindTapToFocus(webrtcReceiverVideo, () => activeReceiverStream);
         }
 
         receiverScanInterval = setInterval(async () => {
@@ -451,7 +488,7 @@ async function start() {
   pool.resize(Number(cfgWorkers.value));
   reportCameraSettings();
   void applyCameraExtras();
-  preview.addEventListener("click", () => void applyCameraExtras());
+  bindTapToFocus(video, () => stream);
   if (!settingsWired) {
     settingsWired = true;
     for (const el of [cfgWidth, cfgCapFps, cfgWorkers]) {
