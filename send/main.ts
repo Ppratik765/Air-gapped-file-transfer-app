@@ -33,6 +33,8 @@ import {
   MAX_FILE_LABEL,
   OPTICAL_MAX_FILE_BYTES,
   OPTICAL_MAX_FILE_LABEL,
+  WEBRTC_MAX_FILE_BYTES,
+  WEBRTC_MAX_FILE_LABEL,
   fnv1a,
   packFile,
   packFrame,
@@ -123,7 +125,7 @@ function updateFilePicker(): void {
   const armed = currentMode() === "file" && selectedFile !== null;
   paneFile.classList.toggle("has-file", armed);
   filePickerButton.textContent = armed ? "Stop transfer" : "Select File";
-  const limitLabel = currentTransferTech === "radio" ? MAX_FILE_LABEL : OPTICAL_MAX_FILE_LABEL;
+  const limitLabel = currentTransferTech === "radio" ? WEBRTC_MAX_FILE_LABEL : OPTICAL_MAX_FILE_LABEL;
   filePickerLabel.textContent =
     armed && selectedFile ? `Selected file: ${selectedFile.name}` : `Any file · up to ${limitLabel}`;
 }
@@ -451,10 +453,6 @@ async function startWebRtcSender(file: File): Promise<void> {
               kbs > 1024 ? `${(kbs / 1024).toFixed(1)} MB/s` : `${kbs.toFixed(0)} KB/s`;
           }
         });
-            webrtcSenderSpeedText.textContent =
-              kbs > 1024 ? `${(kbs / 1024).toFixed(1)} MB/s` : `${kbs.toFixed(0)} KB/s`;
-          }
-        });
 
         if (webrtcSenderProgressFill) webrtcSenderProgressFill.style.width = "100%";
         if (webrtcSenderStatus) {
@@ -479,6 +477,10 @@ async function selectFile(): Promise<void> {
       showError(`${file.name} is empty — there is nothing to send.`);
       return;
     }
+    if (file.size > WEBRTC_MAX_FILE_BYTES) {
+      showError(`${file.name} is ${formatBytes(file.size)}, over the High-Speed Radio ${WEBRTC_MAX_FILE_LABEL} limit.`);
+      return;
+    }
     await startWebRtcSender(file);
     updateFilePicker();
     return;
@@ -492,7 +494,7 @@ async function selectFile(): Promise<void> {
       throw new Error(`${file.name} is empty — there is nothing to send.`);
     }
     if (file.size > OPTICAL_MAX_FILE_BYTES) {
-      throw new Error("File exceeds 16MB. High-speed radio mode required (Coming in Phase 2).");
+      throw new Error(`File exceeds 16MB. High-speed radio mode required for files up to ${WEBRTC_MAX_FILE_LABEL}.`);
     }
     if (file.size > MAX_FILE_BYTES) {
       throw new Error(`${file.name} is ${formatBytes(file.size)}, over the ${MAX_FILE_LABEL} limit.`);
