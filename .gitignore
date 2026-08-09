@@ -4,3 +4,10 @@ dist/
 .DS_Store
 dist-standalone/
 artifacts/
+
+# Android generated files
+android/.gradle/
+android/local.properties
+android/build/
+android/app/build/
+android/app/src/main/assets/www/
