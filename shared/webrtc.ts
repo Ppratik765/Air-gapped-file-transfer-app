@@ -25,9 +25,10 @@ export function trimSdp(sdp: string): string {
     if (l.startsWith("a=fmtp:")) return false;
     if (l.startsWith("a=rtpmap:")) return false;
     if (l.startsWith("a=ssrc:")) return false;
+    if (l.startsWith("a=max-message-size:")) return false;
     return true;
   });
-  return trimmed.join("\r\n");
+  return trimmed.join("\r\n") + "\r\n";
 }
 
 /**
