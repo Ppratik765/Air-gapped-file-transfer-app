@@ -210,6 +210,35 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        wifiReceiver = object : android.content.BroadcastReceiver() {
+            override fun onReceive(context: android.content.Context, intent: android.content.Intent) {
+                val action: String? = intent.action
+                when (action) {
+                    android.net.wifi.p2p.WifiP2pManager.WIFI_P2P_STATE_CHANGED_ACTION -> {
+                        // Check to see if Wi-Fi is enabled
+                    }
+                    android.net.wifi.p2p.WifiP2pManager.WIFI_P2P_PEERS_CHANGED_ACTION -> {
+                        // Request peers
+                    }
+                    android.net.wifi.p2p.WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION -> {
+                        // Respond to new connection or disconnections
+                    }
+                    android.net.wifi.p2p.WifiP2pManager.WIFI_P2P_THIS_DEVICE_CHANGED_ACTION -> {
+                        // Respond to this device's wifi state changing
+                    }
+                }
+            }
+        }
+        registerReceiver(wifiReceiver, intentFilter)
+    }
+
+    override fun onPause() {
+        super.onPause()
+        wifiReceiver?.let { unregisterReceiver(it) }
+    }
+
     override fun onDestroy() {
         super.onDestroy()
         cameraExecutor.shutdown()
