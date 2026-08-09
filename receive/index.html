@@ -55,9 +55,19 @@
           </div>
         </div>
 
-        <div class="webrtc-container" id="webrtc-receive-panel" hidden>
+        <div class="webrtc-container" id="pane-webrtc" hidden>
           <div class="webrtc-card">
-            <h2 class="webrtc-title">High-Speed Air-Gapped WebRTC Receive</h2>
+            <h2 class="webrtc-title">High-Speed Air-Gapped WebRTC Transfer</h2>
+            <button id="wifi-direct-btn" class="secondary-button" hidden style="margin-bottom: 1rem; width: 100%;">Not on the same Wi-Fi? Connect Devices Directly</button>
+            
+            <dialog class="help-dialog" id="wifi-peers-modal" aria-labelledby="wifi-peers-title">
+              <h2 id="wifi-peers-title" tabindex="-1" autofocus>Discovered Devices</h2>
+              <p class="share-hint">Select a nearby device to connect directly via Wi-Fi Direct.</p>
+              <div id="wifi-peers-list" style="display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1rem;"></div>
+              <div class="note-actions">
+                <button id="wifi-peers-close" class="secondary-button" type="button">Close</button>
+              </div>
+            </dialog>
             
             <div class="webrtc-step" id="webrtc-receiver-step1">
               <span class="webrtc-step-num">Step 1</span>
