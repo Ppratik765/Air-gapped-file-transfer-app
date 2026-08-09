@@ -289,6 +289,27 @@ class MainActivity : AppCompatActivity() {
         }
         
         @JavascriptInterface
+        fun startWifiDirectDiscovery() {
+            runOnUiThread {
+                val permissions = mutableListOf(Manifest.permission.ACCESS_FINE_LOCATION)
+                if (android.os.Build.VERSION.SDK_INT >= 33) {
+                    permissions.add(Manifest.permission.NEARBY_WIFI_DEVICES)
+                }
+                val ungranted = permissions.filter { ContextCompat.checkSelfPermission(this@MainActivity, it) != PackageManager.PERMISSION_GRANTED }
+                if (ungranted.isEmpty()) {
+                    if (ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+                        wifiP2pManager.discoverPeers(wifiChannel, object : android.net.wifi.p2p.WifiP2pManager.ActionListener {
+                            override fun onSuccess() {}
+                            override fun onFailure(reasonCode: Int) {}
+                        })
+                    }
+                } else {
+                    requestPermissions(ungranted.toTypedArray(), 101)
+                }
+            }
+        }
+
+        @JavascriptInterface
         fun isNative(): Boolean {
             return true
         }
