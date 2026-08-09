@@ -37,6 +37,16 @@ class MainActivity : AppCompatActivity() {
     private lateinit var cameraExecutor: ExecutorService
     private var isCameraActive = false
 
+    private lateinit var wifiP2pManager: android.net.wifi.p2p.WifiP2pManager
+    private lateinit var wifiChannel: android.net.wifi.p2p.WifiP2pManager.Channel
+    private var wifiReceiver: android.content.BroadcastReceiver? = null
+    private val intentFilter = android.content.IntentFilter().apply {
+        addAction(android.net.wifi.p2p.WifiP2pManager.WIFI_P2P_STATE_CHANGED_ACTION)
+        addAction(android.net.wifi.p2p.WifiP2pManager.WIFI_P2P_PEERS_CHANGED_ACTION)
+        addAction(android.net.wifi.p2p.WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION)
+        addAction(android.net.wifi.p2p.WifiP2pManager.WIFI_P2P_THIS_DEVICE_CHANGED_ACTION)
+    }
+
     private val requestPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted: Boolean ->
             if (isGranted) {
