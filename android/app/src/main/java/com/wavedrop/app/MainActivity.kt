@@ -310,6 +310,21 @@ class MainActivity : AppCompatActivity() {
         }
 
         @JavascriptInterface
+        fun connectToWifiPeer(deviceAddress: String) {
+            runOnUiThread {
+                val config = android.net.wifi.p2p.WifiP2pConfig().apply {
+                    this.deviceAddress = deviceAddress
+                }
+                if (ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+                    wifiP2pManager.connect(wifiChannel, config, object : android.net.wifi.p2p.WifiP2pManager.ActionListener {
+                        override fun onSuccess() {}
+                        override fun onFailure(reasonCode: Int) {}
+                    })
+                }
+            }
+        }
+
+        @JavascriptInterface
         fun isNative(): Boolean {
             return true
         }
