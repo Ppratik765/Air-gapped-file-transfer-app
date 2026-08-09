@@ -85,6 +85,23 @@ const noSignalDialog = document.getElementById("no-signal-dialog") as HTMLDialog
 const noSignalTips = document.getElementById("no-signal-tips")!;
 const metric = (id: string) => document.getElementById(id)!;
 
+const wifiDirectBtn = document.getElementById("wifi-direct-btn") as HTMLButtonElement;
+const wifiPeersModal = document.getElementById("wifi-peers-modal") as HTMLDialogElement;
+const wifiPeersList = document.getElementById("wifi-peers-list") as HTMLDivElement;
+const wifiPeersClose = document.getElementById("wifi-peers-close") as HTMLButtonElement;
+
+if (window.AndroidNativeCamera?.isNative()) {
+  wifiDirectBtn.hidden = false;
+}
+wifiDirectBtn.addEventListener("click", () => {
+  if (window.AndroidNativeCamera?.isNative()) {
+    window.AndroidNativeCamera.startWifiDirectDiscovery();
+  } else {
+    alert("Native Wi-Fi Direct is not available in the web browser. Please turn on your Mobile Hotspot manually and have the sender connect to it before starting the transfer.");
+  }
+});
+wifiPeersClose.addEventListener("click", () => wifiPeersModal.close());
+
 // Nothing has decoded in this long → the sender is almost certainly too dense
 // for this camera. The first nudge comes quickly (a dead link is dead within
 // seconds); a dismissed one comes back on a longer leash, because dismissing
