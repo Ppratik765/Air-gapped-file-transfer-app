@@ -325,6 +325,13 @@ class MainActivity : AppCompatActivity() {
         }
 
         @JavascriptInterface
+        fun openWifiSettings() {
+            runOnUiThread {
+                startActivity(android.content.Intent(android.provider.Settings.ACTION_WIFI_SETTINGS))
+            }
+        }
+
+        @JavascriptInterface
         fun isNative(): Boolean {
             return true
         }
