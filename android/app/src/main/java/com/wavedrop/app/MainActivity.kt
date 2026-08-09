@@ -304,7 +304,7 @@ class MainActivity : AppCompatActivity() {
                         })
                     }
                 } else {
-                    requestPermissions(ungranted.toTypedArray(), 101)
+                    this@MainActivity.requestPermissions(ungranted.toTypedArray(), 101)
                 }
             }
         }
@@ -327,7 +327,7 @@ class MainActivity : AppCompatActivity() {
         @JavascriptInterface
         fun openWifiSettings() {
             runOnUiThread {
-                startActivity(android.content.Intent(android.provider.Settings.ACTION_WIFI_SETTINGS))
+                this@MainActivity.startActivity(android.content.Intent(android.provider.Settings.ACTION_WIFI_SETTINGS))
             }
         }
 
