@@ -221,6 +221,18 @@ class MainActivity : AppCompatActivity() {
                     }
                     android.net.wifi.p2p.WifiP2pManager.WIFI_P2P_PEERS_CHANGED_ACTION -> {
                         // Request peers
+                        if (ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+                            wifiP2pManager.requestPeers(wifiChannel) { peers ->
+                                val jsonList = peers.deviceList.map { device ->
+                                    "{\"name\":\"${device.deviceName}\", \"address\":\"${device.deviceAddress}\"}"
+                                }
+                                val jsonString = "[${jsonList.joinToString(",")}]"
+                                val escapedJson = jsonString.replace("\\", "\\\\").replace("\"", "\\\"")
+                                runOnUiThread {
+                                    webView.evaluateJavascript("if (window.onWifiPeersDiscovered) { window.onWifiPeersDiscovered(\"$escapedJson\"); }", null)
+                                }
+                            }
+                        }
                     }
                     android.net.wifi.p2p.WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION -> {
                         // Respond to new connection or disconnections
