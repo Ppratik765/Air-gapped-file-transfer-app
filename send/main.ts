@@ -45,6 +45,22 @@ import { requestScreenWakeLock } from "../shared/wake-lock";
 import { wireShareDialog } from "../shared/share-dialog";
 import { bindTapToFocus } from "../shared/camera-focus";
 
+declare global {
+  interface Window {
+    AndroidNativeCamera?: {
+      startNativeCamera(): void;
+      stopNativeCamera(): void;
+      startWifiDirectDiscovery(): void;
+      connectToWifiPeer(deviceAddress: string): void;
+      openWifiSettings(): void;
+      isNative(): boolean;
+    };
+    onNativeQrChunkScanned?: (chunk: string) => void;
+    onNativeCameraStopped?: () => void;
+    onWifiPeersDiscovered?: (peersJson: string) => void;
+  }
+}
+
 const MARGIN = 4; // quiet-zone modules
 const LOOKAHEAD = 3;
 

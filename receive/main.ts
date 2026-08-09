@@ -52,10 +52,14 @@ declare global {
     AndroidNativeCamera?: {
       startNativeCamera(): void;
       stopNativeCamera(): void;
+      startWifiDirectDiscovery(): void;
+      connectToWifiPeer(deviceAddress: string): void;
+      openWifiSettings(): void;
       isNative(): boolean;
     };
     onNativeQrChunkScanned?: (chunk: string) => void;
     onNativeCameraStopped?: () => void;
+    onWifiPeersDiscovered?: (peersJson: string) => void;
   }
 }
 
