@@ -101,6 +101,23 @@ const cfgBytes = document.getElementById("cfg-bytes") as HTMLSelectElement;
 const cfgEcc = document.getElementById("cfg-ecc") as HTMLSelectElement;
 const cfgSize = document.getElementById("cfg-size") as HTMLInputElement;
 
+const wifiDirectBtn = document.getElementById("wifi-direct-btn") as HTMLButtonElement;
+const wifiPeersModal = document.getElementById("wifi-peers-modal") as HTMLDialogElement;
+const wifiPeersList = document.getElementById("wifi-peers-list") as HTMLDivElement;
+const wifiPeersClose = document.getElementById("wifi-peers-close") as HTMLButtonElement;
+
+if (window.AndroidNativeCamera?.isNative()) {
+  wifiDirectBtn.hidden = false;
+}
+wifiDirectBtn.addEventListener("click", () => {
+  if (window.AndroidNativeCamera?.isNative()) {
+    window.AndroidNativeCamera.startWifiDirectDiscovery();
+  } else {
+    alert("Native Wi-Fi Direct is not available in the web browser. Please turn on your Mobile Hotspot manually and have the receiver connect to it before starting the transfer.");
+  }
+});
+wifiPeersClose.addEventListener("click", () => wifiPeersModal.close());
+
 let selectedFile: {
   name: string;
   size: number;
