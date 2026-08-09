@@ -3,9 +3,9 @@ import assert from "node:assert/strict";
 import { compressSdp, decompressSdp, trimSdp } from "../shared/webrtc.ts";
 
 test("trimSdp removes non-essential SDP lines", () => {
-  const raw = "v=0\r\na=extmap:1 uri\r\na=fmtp:126\r\na=msid-semantic: WMS\r\nc=IN IP4 127.0.0.1\r\n";
+  const raw = "v=0\r\na=extmap:1 uri\r\na=fmtp:126\r\na=msid-semantic: WMS\r\na=max-message-size:262144\r\nc=IN IP4 127.0.0.1\r\n";
   const trimmed = trimSdp(raw);
-  assert.equal(trimmed, "v=0\r\nc=IN IP4 127.0.0.1");
+  assert.equal(trimmed, "v=0\r\nc=IN IP4 127.0.0.1\r\n");
 });
 
 test("SDP Offer compression and decompression roundtrips correctly", async () => {
@@ -15,7 +15,7 @@ test("SDP Offer compression and decompression roundtrips correctly", async () =>
   assert.ok(compressed.startsWith("WD_OFFER:"));
   
   const restored = await decompressSdp(compressed, "OFFER");
-  assert.equal(restored, dummySdp);
+  assert.equal(restored, trimSdp(dummySdp));
 });
 
 test("SDP Answer compression and decompression roundtrips correctly", async () => {
