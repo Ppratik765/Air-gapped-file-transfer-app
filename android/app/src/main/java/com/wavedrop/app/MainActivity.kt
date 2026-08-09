@@ -59,6 +59,10 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
+        // Initialize WifiP2pManager
+        wifiP2pManager = getSystemService(android.content.Context.WIFI_P2P_SERVICE) as android.net.wifi.p2p.WifiP2pManager
+        wifiChannel = wifiP2pManager.initialize(this, mainLooper, null)
+        
         // Root layout
         val rootLayout = FrameLayout(this)
         setContentView(rootLayout)
