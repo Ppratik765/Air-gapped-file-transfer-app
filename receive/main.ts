@@ -47,6 +47,18 @@ import { bindTapToFocus } from "../shared/camera-focus";
 import { applyAdvancedConstraint, probeCameraCapabilities } from "../shared/platform";
 import { closeOnBackdropClick } from "../shared/dialog";
 
+declare global {
+  interface Window {
+    AndroidNativeCamera?: {
+      startNativeCamera(): void;
+      stopNativeCamera(): void;
+      isNative(): boolean;
+    };
+    onNativeQrChunkScanned?: (chunk: string) => void;
+    onNativeCameraStopped?: () => void;
+  }
+}
+
 const startBtn = document.getElementById("start") as HTMLButtonElement;
 const video = document.getElementById("video") as HTMLVideoElement;
 const preview = document.getElementById("preview")!;
@@ -125,6 +137,9 @@ let activeReceiverStream: MediaStream | null = null;
 let receiverScanInterval: ReturnType<typeof setInterval> | null = null;
 
 function stopOpticalCamera() {
+  if (window.AndroidNativeCamera) {
+    window.AndroidNativeCamera.stopNativeCamera();
+  }
   if (stream) {
     stream.getTracks().forEach((t) => t.stop());
     stream = null;
@@ -431,6 +446,33 @@ function offerRetry(message: string) {
 }
 
 async function start() {
+  if (window.AndroidNativeCamera) {
+    startBtn.disabled = true;
+    startBtn.style.display = "none";
+    preview.style.display = "none";
+    metricsEl.style.display = "grid";
+    if (diagnosticsEl) diagnosticsEl.style.display = "block";
+    setStatus("Native camera starting...");
+    
+    window.onNativeQrChunkScanned = (base64Chunk: string) => {
+      const binaryString = atob(base64Chunk);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      onDecoded(bytes);
+    };
+
+    window.onNativeCameraStopped = () => {
+      done = true;
+    };
+    
+    noSignal.cameraStarted(performance.now());
+    startTs = performance.now();
+    window.AndroidNativeCamera.startNativeCamera();
+    return;
+  }
+
   if (!navigator.mediaDevices?.getUserMedia) {
     // On insecure origins the API doesn't exist AT ALL — this is the plain-
     // http-over-LAN case. localhost is exempt; other hosts need https.
@@ -662,6 +704,11 @@ function goodputKbs(elapsed: number): number {
 async function finish(container: Uint8Array, hashOk: boolean, seconds: number) {
   done = true;
   captureGen++;
+  
+  if (window.AndroidNativeCamera) {
+    window.AndroidNativeCamera.stopNativeCamera();
+  }
+
   // Tear the whole capture pipeline down: the camera, the stats timer, and the
   // decode pool. Each worker holds its own ~940 KB zxing WASM instance, which
   // is worth reclaiming on a phone the moment the last frame is in.
