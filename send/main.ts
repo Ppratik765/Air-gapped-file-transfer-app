@@ -118,6 +118,32 @@ wifiDirectBtn.addEventListener("click", () => {
 });
 wifiPeersClose.addEventListener("click", () => wifiPeersModal.close());
 
+window.onWifiPeersDiscovered = (peersJson: string) => {
+  try {
+    const peers = JSON.parse(peersJson) as { name: string; address: string }[];
+    wifiPeersList.innerHTML = "";
+    if (peers.length === 0) {
+      wifiPeersList.innerHTML = "<p>No nearby devices found.</p>";
+    } else {
+      for (const peer of peers) {
+        const btn = document.createElement("button");
+        btn.className = "secondary-button";
+        btn.textContent = peer.name || peer.address || "Unknown Device";
+        btn.onclick = () => {
+          if (window.AndroidNativeCamera?.isNative()) {
+            window.AndroidNativeCamera.connectToWifiPeer(peer.address);
+            wifiPeersModal.close();
+          }
+        };
+        wifiPeersList.appendChild(btn);
+      }
+    }
+    wifiPeersModal.showModal();
+  } catch (e) {
+    console.error("Failed to parse peers json", e);
+  }
+};
+
 let selectedFile: {
   name: string;
   size: number;
