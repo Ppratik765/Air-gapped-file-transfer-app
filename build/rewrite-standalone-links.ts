@@ -45,7 +45,7 @@ export function rewriteStandaloneLinks(page: "send" | "receive"): Plugin {
       // A single file has no siblings to load a favicon from, and leaving the
       // link in would be the one external reference in a page whose whole point
       // is having none.
-      from: '<link rel="icon" href="../decimen_logo.svg" type="image/svg+xml" />',
+      from: '<link rel="icon" href="../wavedrop_logo.svg" type="image/svg+xml" />',
       to: "",
       required: true,
     },
