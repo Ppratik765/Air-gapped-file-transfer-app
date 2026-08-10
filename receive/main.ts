@@ -870,7 +870,7 @@ async function finish(container: Uint8Array, hashOk: boolean, seconds: number) {
   }
 }
 
-/** Deletes the received-media cache — the one thing Decimen persists (see
+/** Deletes the received-media cache — the one thing WaveDrop persists (see
  *  servableMediaUrl). Handing the phone over shouldn't mean handing over the
  *  last transfer. A player still streaming from the cache falls back to its
  *  blob URL via the error listener wired in finish(). */
