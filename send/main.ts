@@ -14,6 +14,7 @@
 
 import QRCode from "qrcode";
 import { initTheme } from "../shared/theme";
+import { initAppPromoBanner } from "../shared/app-promo";
 import { fitQrDisplaySize } from "../shared/display";
 import { rasterizeQr } from "../shared/qr-raster";
 import { formatBytes } from "../shared/format";
@@ -30,6 +31,9 @@ import { MAX_SNIPPET_BYTES, MAX_SNIPPET_LABEL, packSnippet } from "../shared/sni
 import {
   MAX_FILE_BYTES,
   MAX_FILE_LABEL,
+  OPTICAL_MAX_FILE_BYTES,
+  OPTICAL_MAX_FILE_LABEL,
+  getRadioMaxFileLimit,
   fnv1a,
   packFile,
   packFrame,
@@ -39,6 +43,23 @@ import {
 import { statusLine } from "../shared/status-line";
 import { requestScreenWakeLock } from "../shared/wake-lock";
 import { wireShareDialog } from "../shared/share-dialog";
+import { bindTapToFocus } from "../shared/camera-focus";
+
+declare global {
+  interface Window {
+    AndroidNativeCamera?: {
+      startNativeCamera(): void;
+      stopNativeCamera(): void;
+      startWifiDirectDiscovery(): void;
+      connectToWifiPeer(deviceAddress: string): void;
+      openWifiSettings(): void;
+      isNative(): boolean;
+    };
+    onNativeQrChunkScanned?: (chunk: string) => void;
+    onNativeCameraStopped?: () => void;
+    onWifiPeersDiscovered?: (peersJson: string) => void;
+  }
+}
 
 const MARGIN = 4; // quiet-zone modules
 const LOOKAHEAD = 3;
@@ -80,6 +101,49 @@ const cfgBytes = document.getElementById("cfg-bytes") as HTMLSelectElement;
 const cfgEcc = document.getElementById("cfg-ecc") as HTMLSelectElement;
 const cfgSize = document.getElementById("cfg-size") as HTMLInputElement;
 
+const wifiDirectBtn = document.getElementById("wifi-direct-btn") as HTMLButtonElement;
+const wifiPeersModal = document.getElementById("wifi-peers-modal") as HTMLDialogElement;
+const wifiPeersList = document.getElementById("wifi-peers-list") as HTMLDivElement;
+const wifiPeersClose = document.getElementById("wifi-peers-close") as HTMLButtonElement;
+
+if (window.AndroidNativeCamera?.isNative()) {
+  wifiDirectBtn.hidden = false;
+}
+wifiDirectBtn.addEventListener("click", () => {
+  if (window.AndroidNativeCamera?.isNative()) {
+    window.AndroidNativeCamera.startWifiDirectDiscovery();
+  } else {
+    alert("Native Wi-Fi Direct is not available in the web browser. Please turn on your Mobile Hotspot manually and have the receiver connect to it before starting the transfer.");
+  }
+});
+wifiPeersClose.addEventListener("click", () => wifiPeersModal.close());
+
+window.onWifiPeersDiscovered = (peersJson: string) => {
+  try {
+    const peers = JSON.parse(peersJson) as { name: string; address: string }[];
+    wifiPeersList.innerHTML = "";
+    if (peers.length === 0) {
+      wifiPeersList.innerHTML = "<p>No nearby devices found.</p>";
+    } else {
+      for (const peer of peers) {
+        const btn = document.createElement("button");
+        btn.className = "secondary-button";
+        btn.textContent = peer.name || peer.address || "Unknown Device";
+        btn.onclick = () => {
+          if (window.AndroidNativeCamera?.isNative()) {
+            window.AndroidNativeCamera.connectToWifiPeer(peer.address);
+            wifiPeersModal.close();
+          }
+        };
+        wifiPeersList.appendChild(btn);
+      }
+    }
+    wifiPeersModal.showModal();
+  } catch (e) {
+    console.error("Failed to parse peers json", e);
+  }
+};
+
 let selectedFile: {
   name: string;
   size: number;
@@ -120,8 +184,10 @@ function updateFilePicker(): void {
   const armed = currentMode() === "file" && selectedFile !== null;
   paneFile.classList.toggle("has-file", armed);
   filePickerButton.textContent = armed ? "Stop transfer" : "Select File";
+  const radioLimit = getRadioMaxFileLimit();
+  const limitLabel = currentTransferTech === "radio" ? radioLimit.label : OPTICAL_MAX_FILE_LABEL;
   filePickerLabel.textContent =
-    armed && selectedFile ? `Selected file: ${selectedFile.name}` : `Any file · up to ${MAX_FILE_LABEL}`;
+    armed && selectedFile ? `Selected file: ${selectedFile.name}` : `Any file · up to ${limitLabel}`;
 }
 
 /** Tear the stream down and disarm the picker. The input is cleared so the
@@ -134,8 +200,41 @@ function stopTransfer(): void {
   stage.hidden = true;
   showStreamPanels(false);
   cfgFile.value = "";
+
+  // Complete WebRTC cleanup
+  if (activeSenderPc) {
+    activeSenderPc.close();
+    activeSenderPc = null;
+  }
+  if (senderScanInterval) {
+    clearInterval(senderScanInterval);
+    senderScanInterval = null;
+  }
+  if (senderConnTimeout) {
+    clearTimeout(senderConnTimeout);
+    senderConnTimeout = null;
+  }
+  if (activeSenderStream) {
+    activeSenderStream.getTracks().forEach((t) => t.stop());
+    activeSenderStream = null;
+  }
+  if (webrtcSenderVideo) {
+    webrtcSenderVideo.srcObject = null;
+  }
+  if (paneWebrtc) paneWebrtc.hidden = true;
+  if (webrtcSenderStep1) webrtcSenderStep1.hidden = true;
+  if (webrtcSenderStep2) webrtcSenderStep2.hidden = true;
+  if (webrtcSenderStep3) webrtcSenderStep3.hidden = true;
+  if (webrtcOfferQr) {
+    const ctx = webrtcOfferQr.getContext("2d");
+    if (ctx) ctx.clearRect(0, 0, webrtcOfferQr.width, webrtcOfferQr.height);
+  }
+  if (webrtcSenderProgressFill) webrtcSenderProgressFill.style.width = "0%";
+  if (webrtcSenderProgressText) webrtcSenderProgressText.textContent = "0 MB / 0 MB (0%)";
+  if (webrtcSenderSpeedText) webrtcSenderSpeedText.textContent = "0 KB/s";
+
   updateFilePicker();
-  setStatus("Choose a file to begin");
+  setStatus(currentMode() === "snippet" ? "Paste or type some text to begin" : "Choose a file to begin");
 }
 
 /** Tap the code to fill the screen with it — a bigger physical code lets the
@@ -202,6 +301,9 @@ function applyMode(): void {
  * the page idle rather than streaming something stale. Every way of choosing a
  * payload goes through here so the guard can't be subtly wrong in one copy.
  */
+let currentTransferTech: "optical" | "radio" = "optical";
+const transferTechInputs = document.querySelectorAll<HTMLInputElement>('input[name="transfer-tech"]');
+
 async function startSelection(
   status: string,
   prepare: () => Promise<{ name: string; size: number; packed: PackedOpticalFile }>,
@@ -209,6 +311,12 @@ async function startSelection(
   const selectionGeneration = ++generation;
   selectedFile = null;
   stage.hidden = true;
+
+  if (currentTransferTech === "radio") {
+    showError("High-Speed WebRTC mode coming soon!");
+    return;
+  }
+
   setStatus(status);
   try {
     const { name, size, packed } = await prepare();
@@ -236,20 +344,252 @@ async function selectDemo(fileName: string): Promise<void> {
   });
 }
 
+import {
+  createLocalPeerConnection,
+  waitForIceGathering,
+  compressSdp,
+  decompressSdp,
+  sendFileOverDataChannel,
+} from "../shared/webrtc";
+import { drawQrToCanvas } from "../shared/qr-raster";
+import { scanQrFromVideo } from "../shared/qr-scanner";
+
+const paneWebrtc = document.getElementById("pane-webrtc") as HTMLDivElement;
+const webrtcSenderStep1 = document.getElementById("webrtc-sender-step1") as HTMLDivElement;
+const webrtcSenderStep2 = document.getElementById("webrtc-sender-step2") as HTMLDivElement;
+const webrtcSenderStep3 = document.getElementById("webrtc-sender-step3") as HTMLDivElement;
+const webrtcOfferQr = document.getElementById("webrtc-offer-qr") as HTMLCanvasElement;
+const webrtcScanAnswerBtn = document.getElementById("webrtc-scan-answer-btn") as HTMLButtonElement;
+const webrtcSenderVideo = document.getElementById("webrtc-sender-video") as HTMLVideoElement;
+const webrtcCancelScanBtn = document.getElementById("webrtc-cancel-scan-btn") as HTMLButtonElement;
+const webrtcSenderStatus = document.getElementById("webrtc-sender-status") as HTMLParagraphElement;
+const webrtcSenderProgressFill = document.getElementById("webrtc-sender-progress-fill") as HTMLDivElement;
+const webrtcSenderProgressText = document.getElementById("webrtc-sender-progress-text") as HTMLSpanElement;
+const webrtcSenderSpeedText = document.getElementById("webrtc-sender-speed-text") as HTMLSpanElement;
+
+let activeSenderPc: RTCPeerConnection | null = null;
+let activeSenderStream: MediaStream | null = null;
+let senderScanInterval: ReturnType<typeof setInterval> | null = null;
+let senderConnTimeout: ReturnType<typeof setTimeout> | null = null;
+
+function showSenderHandshakeTimeoutError(file: File): void {
+  if (senderConnTimeout) {
+    clearTimeout(senderConnTimeout);
+    senderConnTimeout = null;
+  }
+  showError("Connection timed out. Devices may not be on the same local network.");
+  if (webrtcSenderStatus) {
+    webrtcSenderStatus.innerHTML = `
+      <span style="color: var(--red); font-weight: bold;">Connection Failed / Timed Out</span><br/>
+      <button id="webrtc-sender-retry-btn" type="button" style="margin-top: 10px; padding: 8px 16px; border-radius: 8px; background: var(--line-bright); color: #fff; font-weight: bold; border: none; cursor: pointer;">Retry Handshake</button>
+    `;
+    const retryBtn = document.getElementById("webrtc-sender-retry-btn");
+    if (retryBtn) {
+      retryBtn.onclick = () => void startWebRtcSender(file);
+    }
+  }
+}
+
+async function startWebRtcSender(file: File): Promise<void> {
+  if (activeSenderPc) {
+    activeSenderPc.close();
+    activeSenderPc = null;
+  }
+  if (senderScanInterval) {
+    clearInterval(senderScanInterval);
+    senderScanInterval = null;
+  }
+  if (senderConnTimeout) {
+    clearTimeout(senderConnTimeout);
+    senderConnTimeout = null;
+  }
+
+  paneFile.hidden = true;
+  paneSnippet.hidden = true;
+  stage.hidden = true;
+  if (paneWebrtc) paneWebrtc.hidden = false;
+  if (webrtcSenderStep1) webrtcSenderStep1.hidden = false;
+  if (webrtcSenderStep2) webrtcSenderStep2.hidden = true;
+  if (webrtcSenderStep3) webrtcSenderStep3.hidden = true;
+
+  setStatus("Gathering local network candidates…");
+  if (webrtcSenderStatus) webrtcSenderStatus.textContent = "Gathering local network candidates…";
+
+  try {
+    const pc = createLocalPeerConnection();
+    activeSenderPc = pc;
+
+    // WebRTC Lifecycle Event Logging
+    pc.addEventListener("icegatheringstatechange", () => {
+      console.log("[WebRTC Sender] ICE gathering state:", pc.iceGatheringState);
+    });
+    pc.addEventListener("connectionstatechange", () => {
+      console.log("[WebRTC Sender] Connection state:", pc.connectionState);
+      if (pc.connectionState === "connected") {
+        if (senderConnTimeout) {
+          clearTimeout(senderConnTimeout);
+          senderConnTimeout = null;
+        }
+      } else if (pc.connectionState === "failed") {
+        showSenderHandshakeTimeoutError(file);
+      }
+    });
+    pc.addEventListener("iceconnectionstatechange", () => {
+      console.log("[WebRTC Sender] ICE connection state:", pc.iceConnectionState);
+      if (pc.iceConnectionState === "failed") {
+        showSenderHandshakeTimeoutError(file);
+      }
+    });
+    pc.addEventListener("signalingstatechange", () => {
+      console.log("[WebRTC Sender] Signaling state:", pc.signalingState);
+    });
+
+    const channel = pc.createDataChannel("file-transfer");
+
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    await waitForIceGathering(pc);
+
+    const compressedOffer = await compressSdp(pc.localDescription!.sdp, "OFFER");
+    if (webrtcOfferQr) drawQrToCanvas(compressedOffer, webrtcOfferQr);
+
+    setStatus("Displaying Offer QR Code");
+
+    if (webrtcScanAnswerBtn) {
+      webrtcScanAnswerBtn.onclick = async () => {
+        if (webrtcSenderStep1) webrtcSenderStep1.hidden = true;
+        if (webrtcSenderStep2) webrtcSenderStep2.hidden = false;
+        setStatus("Scan Answer QR Code");
+
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: "environment", width: { ideal: 960 }, height: { ideal: 720 } },
+          });
+          activeSenderStream = stream;
+          if (webrtcSenderVideo) {
+            webrtcSenderVideo.srcObject = stream;
+            await webrtcSenderVideo.play().catch(() => undefined);
+          }
+
+          senderScanInterval = setInterval(async () => {
+            if (!webrtcSenderVideo) return;
+            const text = await scanQrFromVideo(webrtcSenderVideo);
+            if (text && text.startsWith("WD_ANSWER:")) {
+              if (senderScanInterval) clearInterval(senderScanInterval);
+              stream.getTracks().forEach((t) => t.stop());
+              activeSenderStream = null;
+
+              try {
+                const answerSdp = await decompressSdp(text, "ANSWER");
+                await pc.setRemoteDescription({ type: "answer", sdp: answerSdp });
+                if (webrtcSenderStep2) webrtcSenderStep2.hidden = true;
+                if (webrtcSenderStep3) webrtcSenderStep3.hidden = false;
+
+                if (webrtcSenderStatus) webrtcSenderStatus.textContent = "Connecting over local radio…";
+                setStatus("Connecting over local radio…");
+
+                // Start 10s connection timeout
+                senderConnTimeout = setTimeout(() => {
+                  if (pc.connectionState !== "connected" && pc.iceConnectionState !== "connected") {
+                    showSenderHandshakeTimeoutError(file);
+                  }
+                }, 10000);
+              } catch (err) {
+                showError(`Failed to parse Answer QR code: ${err}`);
+              }
+            }
+          }, 150);
+        } catch (err) {
+          showError(`Camera access failed: ${err}`);
+        }
+      };
+    }
+
+    if (webrtcCancelScanBtn) {
+      webrtcCancelScanBtn.onclick = () => {
+        if (senderScanInterval) clearInterval(senderScanInterval);
+        if (activeSenderStream) {
+          activeSenderStream.getTracks().forEach((t) => t.stop());
+          activeSenderStream = null;
+        }
+        if (webrtcSenderStep2) webrtcSenderStep2.hidden = true;
+        if (webrtcSenderStep1) webrtcSenderStep1.hidden = false;
+        setStatus("Displaying Offer QR Code");
+      };
+    }
+
+    channel.onopen = async () => {
+      if (senderConnTimeout) {
+        clearTimeout(senderConnTimeout);
+        senderConnTimeout = null;
+      }
+      if (webrtcSenderStatus) {
+        webrtcSenderStatus.textContent = `Connected! Transferring data (${file.name})…`;
+      }
+      setStatus(`Connected! Transferring data (${file.name})…`);
+      const startTs = performance.now();
+
+      try {
+        await sendFileOverDataChannel(channel, file, (sentBytes, totalBytes) => {
+          const pct = Math.round((sentBytes / totalBytes) * 100);
+          if (webrtcSenderProgressFill) webrtcSenderProgressFill.style.width = `${pct}%`;
+          const sentMb = (sentBytes / 1024 / 1024).toFixed(1);
+          const totalMb = (totalBytes / 1024 / 1024).toFixed(1);
+          if (webrtcSenderProgressText) {
+            webrtcSenderProgressText.textContent = `${sentMb} / ${totalMb} MB (${pct}%)`;
+          }
+
+          const elapsedSec = (performance.now() - startTs) / 1000;
+          const kbs = elapsedSec > 0 ? sentBytes / 1024 / elapsedSec : 0;
+          if (webrtcSenderSpeedText) {
+            webrtcSenderSpeedText.textContent =
+              kbs > 1024 ? `${(kbs / 1024).toFixed(1)} MB/s` : `${kbs.toFixed(0)} KB/s`;
+          }
+        });
+
+        if (webrtcSenderProgressFill) webrtcSenderProgressFill.style.width = "100%";
+        if (webrtcSenderStatus) {
+          webrtcSenderStatus.textContent = `✔ Transfer complete! ${file.name} sent over WebRTC.`;
+        }
+        setStatus(`✔ Transfer complete! ${file.name} sent over WebRTC.`);
+      } catch (err) {
+        showError(`WebRTC stream error: ${err}`);
+      }
+    };
+  } catch (err) {
+    showError(`Failed to generate WebRTC Offer: ${err}`);
+  }
+}
+
 async function selectFile(): Promise<void> {
   const file = cfgFile.files?.[0];
   if (!file) return;
+
+  if (currentTransferTech === "radio") {
+    if (file.size === 0) {
+      showError(`${file.name} is empty — there is nothing to send.`);
+      return;
+    }
+    const radioLimit = getRadioMaxFileLimit();
+    if (file.size > radioLimit.bytes) {
+      showError(`${file.name} is ${formatBytes(file.size)}, over the High-Speed Radio ${radioLimit.label} limit.`);
+      return;
+    }
+    await startWebRtcSender(file);
+    updateFilePicker();
+    return;
+  }
 
   // 1465 B (QR v27) is the optimal scannable frame size for screen-to-camera scanning
   cfgBytes.value = "1465";
 
   await startSelection(`preparing ${file.name}…`, async () => {
-    // Checked here, off File.size, rather than after reading the bytes: a file
-    // well past the limit should be refused instantly instead of after the
-    // browser has spent time and memory materialising it. Name the actual size —
-    // "too large" without a number leaves you guessing by how much.
     if (file.size === 0) {
       throw new Error(`${file.name} is empty — there is nothing to send.`);
+    }
+    const radioLimit = getRadioMaxFileLimit();
+    if (file.size > OPTICAL_MAX_FILE_BYTES) {
+      throw new Error(`File exceeds 16MB. High-speed radio mode required for files up to ${radioLimit.label}.`);
     }
     if (file.size > MAX_FILE_BYTES) {
       throw new Error(`${file.name} is ${formatBytes(file.size)}, over the ${MAX_FILE_LABEL} limit.`);
@@ -269,6 +609,7 @@ async function selectSnippet(): Promise<void> {
 
 async function main() {
   initTheme();
+  initAppPromoBanner();
   // Both bounds come from MAX_SNIPPET_BYTES so they can't drift apart. maxLength
   // counts UTF-16 units and the real check counts UTF-8 bytes, which are never
   // fewer — so this is a loose guard and packSnippet() remains authoritative.
@@ -296,6 +637,15 @@ async function main() {
     });
     sendSnippetBtn.addEventListener("click", () => void selectSnippet());
     for (const input of modeInputs) input.addEventListener("change", applyMode);
+  }
+  if (webrtcSenderVideo) {
+    bindTapToFocus(webrtcSenderVideo, () => activeSenderStream);
+  }
+  for (const input of transferTechInputs) {
+    input.addEventListener("change", () => {
+      currentTransferTech = input.value as "optical" | "radio";
+      stopTransfer();
+    });
   }
   applyMode();
   window.addEventListener("resize", () => resizeDisplay?.());

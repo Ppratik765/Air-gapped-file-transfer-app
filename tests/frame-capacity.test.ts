@@ -8,7 +8,7 @@ import {
   smallestSufficientFrameSize,
   sourceBlockCount,
 } from "../shared/frame-capacity.ts";
-import { HEADER_LEN, MAX_FILE_BYTES } from "../shared/protocol.ts";
+import { HEADER_LEN, OPTICAL_MAX_FILE_BYTES } from "../shared/protocol.ts";
 import { FRAME_BYTES_OPTIONS } from "../shared/send-settings.ts";
 
 /** The sender's actual bytes/frame dropdown — these tests hold for the options
@@ -32,11 +32,11 @@ test("the block ceiling bites well below the file size limit", () => {
   // size you run out of block numbers around 30 MB, not 64.
   assert.equal(fitsInOneStream(30 * 1024 * 1024, 500), false);
   assert.equal(fitsInOneStream(20 * 1024 * 1024, 500), true);
-  assert.equal(fitsInOneStream(MAX_FILE_BYTES, 2953), true);
+  assert.equal(fitsInOneStream(OPTICAL_MAX_FILE_BYTES, 2953), true);
 });
 
 test("minimumFrameBytes is the smallest frame size that actually fits", () => {
-  for (const payload of [1, 1000, 30 * 1024 * 1024, 64 * 1024 * 1024, MAX_FILE_BYTES]) {
+  for (const payload of [1, 1000, 10 * 1024 * 1024, OPTICAL_MAX_FILE_BYTES]) {
     const minimum = minimumFrameBytes(payload);
     assert.ok(fitsInOneStream(payload, minimum), `${payload} does not fit at ${minimum}`);
     // ...and it really is the smallest: one byte less must not fit, unless we
@@ -54,7 +54,7 @@ test("minimumFrameBytes is the smallest frame size that actually fits", () => {
 test("the suggested dropdown option always works", () => {
   // The sender puts this number in front of the user, so it has to be a value
   // they can pick AND one that resolves the error.
-  for (const payload of [30 * 1024 * 1024, 40 * 1024 * 1024, MAX_FILE_BYTES]) {
+  for (const payload of [10 * 1024 * 1024, OPTICAL_MAX_FILE_BYTES]) {
     for (const frameBytes of OFFERED) {
       if (fitsInOneStream(payload, frameBytes)) continue;
       const suggestion = smallestSufficientFrameSize(payload, OFFERED);
@@ -68,8 +68,8 @@ test("the suggested dropdown option always works", () => {
 
 test("an offered option always exists for any legal payload", () => {
   // The container adds a header plus the name and media type, so allow room
-  // above MAX_FILE_BYTES for the largest plausible envelope.
-  const worstCase = MAX_FILE_BYTES + 49 + 2 * 0xffff;
+  // above OPTICAL_MAX_FILE_BYTES for the largest plausible envelope.
+  const worstCase = OPTICAL_MAX_FILE_BYTES + 49 + 2 * 0xffff;
   const suggestion = smallestSufficientFrameSize(worstCase, OFFERED);
   assert.ok(suggestion !== undefined, "the dropdown cannot express the largest legal payload");
   assert.ok(fitsInOneStream(worstCase, suggestion));

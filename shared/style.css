@@ -444,10 +444,77 @@ details.settings input[type="range"] {
 }
 
 html, body, .site-header, .site-footer, .transfer-card, .file-picker,
-.help-dialog, .settings, input, button, select, textarea, .mode-nav, .brand {
+.help-dialog, .settings, input, button, select, textarea, .mode-nav, .brand, .app-promo-banner {
   transition: background-color 0.35s cubic-bezier(0.4, 0, 0.2, 1),
               border-color 0.35s cubic-bezier(0.4, 0, 0.2, 1),
               color 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Native App Promotion Banner */
+.app-promo-banner {
+  width: 100%;
+  background: var(--line-bright);
+  color: #ffffff;
+  padding: 10px 16px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
+  position: relative;
+  z-index: 10;
+}
+
+.app-promo-content {
+  max-width: 1120px;
+  margin: 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+}
+
+.app-promo-text {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.app-promo-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.app-promo-apk-btn {
+  background: #ffffff;
+  color: #121212;
+  padding: 5px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 800;
+  text-decoration: none;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+  transition: transform 0.15s ease, background-color 0.15s ease;
+}
+
+.app-promo-apk-btn:hover {
+  transform: translateY(-1px);
+  background: #f0f0f0;
+  color: #000000;
+}
+
+.app-promo-dismiss-btn {
+  background: rgba(0, 0, 0, 0.2);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.app-promo-dismiss-btn:hover {
+  background: rgba(0, 0, 0, 0.35);
 }
 
 .header-right {
@@ -532,7 +599,7 @@ html, body, .site-header, .site-footer, .transfer-card, .file-picker,
   color: var(--text);
   font-size: 13px;
   font-weight: 800;
-  /* Tighter than the old DECIMEN-only mark: at 0.18em the full product name
+  /* Tighter than the old WaveDrop-only mark: at 0.18em the full product name
      out-shouted the page headings. */
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -884,8 +951,23 @@ html, body, .site-header, .site-footer, .transfer-card, .file-picker,
 .send-shell .file-picker,
 .send-shell details.settings,
 .mode-picker,
-.note-composer {
+.note-composer,
+.transfer-tech-group {
   width: 100%;
+}
+
+.transfer-tech-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.transfer-tech-label {
+  color: var(--text-dim);
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .demo-picker {
@@ -1449,4 +1531,145 @@ html, body, .site-header, .site-footer, .transfer-card, .file-picker,
     height: calc(100dvh - 108px);
     max-width: 100%;
   }
+}
+
+/* WebRTC Handshake & Transfer Styles */
+.webrtc-container {
+  width: 100%;
+  margin-top: 16px;
+}
+
+.webrtc-card {
+  background: var(--panel);
+  border: 1px solid var(--line-bright);
+  border-radius: 18px;
+  padding: clamp(20px, 4vw, 32px);
+  box-shadow: 0 4px 20px rgba(255, 159, 28, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.webrtc-title {
+  margin: 0;
+  color: var(--text);
+  font-size: clamp(20px, 3vw, 28px);
+  letter-spacing: -0.03em;
+  text-align: center;
+}
+
+.webrtc-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 14px;
+}
+
+.webrtc-step-num {
+  align-self: center;
+  color: var(--line-bright);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  background: rgba(255, 159, 28, 0.12);
+  padding: 4px 12px;
+  border-radius: 999px;
+}
+
+.webrtc-step-desc {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+  max-width: 480px;
+}
+
+.webrtc-qr-box {
+  background: #ffffff;
+  padding: 16px;
+  border-radius: 20px;
+  border: 3px solid var(--line-bright);
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  width: min(85vw, 85vh);
+  height: min(85vw, 85vh);
+  max-width: 600px;
+  max-height: 600px;
+  margin: 0 auto;
+  box-shadow: 0 8px 32px rgba(255, 159, 28, 0.15);
+}
+
+.webrtc-qr-box canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
+.webrtc-scanner-box {
+  width: 100%;
+  max-width: 480px;
+  aspect-ratio: 4 / 3;
+  background: #000000;
+  border-radius: 16px;
+  overflow: hidden;
+  position: relative;
+  border: 2px solid var(--line-bright);
+}
+
+.webrtc-scanner-box video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.webrtc-progress-bar {
+  width: 100%;
+  height: 14px;
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 999px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+}
+
+.webrtc-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), var(--line-bright));
+  border-radius: 999px;
+  transition: width 0.2s ease;
+}
+
+.webrtc-stats-row {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  color: var(--text-dim);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+/* Animated Camera Focus Reticle */
+.camera-focus-reticle {
+  position: absolute;
+  width: 56px;
+  height: 56px;
+  margin-left: -28px;
+  margin-top: -28px;
+  border: 2px solid #f59e0b;
+  box-shadow: 0 0 14px rgba(245, 158, 11, 0.85), inset 0 0 10px rgba(245, 158, 11, 0.45);
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 1000;
+  transform: scale(1.7);
+  opacity: 0;
+  transition: transform 0.22s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.22s ease-out;
+}
+
+.camera-focus-reticle.active {
+  transform: scale(1);
+  opacity: 1;
 }

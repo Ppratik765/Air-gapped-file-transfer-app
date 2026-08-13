@@ -21,6 +21,7 @@ import { standaloneCsp } from "./build/standalone-csp";
 import { emitAs } from "./build/emit-as";
 import { rootPwaHead } from "./build/root-pwa-head";
 import { licenseBanner } from "./build/license-banner";
+import { generateVersion } from "./build/generate-version";
 
 // Where the site is published, used only to make the social-card URLs absolute
 // — scrapers are inconsistent about resolving relative ones. Override with
@@ -177,6 +178,7 @@ export default defineConfig(({ mode }) => {
       }),
       rootPwaHead(),
       licenseBanner(pkg.version),
+      generateVersion(pkg.version),
     ],
     build: {
       rollupOptions: {

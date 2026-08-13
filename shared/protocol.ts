@@ -13,7 +13,26 @@
 //  16  u32  payloadFnv  FNV-1a of the whole container — verified on completion
 
 export const HEADER_LEN = 20;
-export const MAX_FILE_BYTES = 64 * 1024 * 1024;
+export const OPTICAL_MAX_FILE_BYTES = 16 * 1024 * 1024;
+export const OPTICAL_MAX_FILE_LABEL = `${OPTICAL_MAX_FILE_BYTES / 1024 / 1024} MB`;
+
+export const WEBRTC_WEB_MAX_FILE_BYTES = 64 * 1024 * 1024;
+export const WEBRTC_WEB_MAX_FILE_LABEL = `${WEBRTC_WEB_MAX_FILE_BYTES / 1024 / 1024} MB`;
+
+export const WEBRTC_NATIVE_MAX_FILE_BYTES = 512 * 1024 * 1024;
+export const WEBRTC_NATIVE_MAX_FILE_LABEL = `${WEBRTC_NATIVE_MAX_FILE_BYTES / 1024 / 1024} MB`;
+
+export const MAX_FILE_BYTES = WEBRTC_WEB_MAX_FILE_BYTES;
+export const MAX_FILE_LABEL = WEBRTC_WEB_MAX_FILE_LABEL;
+
+export function getRadioMaxFileLimit(): { bytes: number; label: string } {
+  const isNative =
+    typeof window !== "undefined" &&
+    (window as unknown as { AndroidNativeCamera?: unknown }).AndroidNativeCamera !== undefined;
+  return isNative
+    ? { bytes: WEBRTC_NATIVE_MAX_FILE_BYTES, label: WEBRTC_NATIVE_MAX_FILE_LABEL }
+    : { bytes: WEBRTC_WEB_MAX_FILE_BYTES, label: WEBRTC_WEB_MAX_FILE_LABEL };
+}
 /**
  * One place for the number, so the picker label, the rejection message and
  * packFile()'s own error can't drift apart. The HTML pulls it in as the
@@ -22,7 +41,6 @@ export const MAX_FILE_BYTES = 64 * 1024 * 1024;
  * README.md still spells it out in prose — nothing templates a markdown file,
  * so that one is on you if this ever changes.
  */
-export const MAX_FILE_LABEL = `${MAX_FILE_BYTES / 1024 / 1024} MB`;
 const FILE_HEADER_LEN = 49;
 const MAGIC0 = 0xd1;
 const MAGIC1 = 0x0c;

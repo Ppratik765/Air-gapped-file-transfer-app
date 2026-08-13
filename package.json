@@ -13,6 +13,7 @@
     "build": "tsc && tsc -p tsconfig.node.json && vite build",
     "build:standalone": "node -e \"require('node:fs').rmSync('dist-standalone',{recursive:true,force:true})\" && tsc && vite build --mode standalone-send && vite build --mode standalone-receive",
     "build:all": "npm run build && npm run build:standalone",
+    "build:android": "npm run build && node ./build-android-assets.js",
     "preview": "vite preview",
     "icons": "node --import tsx build/make-icons.ts",
     "test": "node --import tsx --test tests/*.test.ts"

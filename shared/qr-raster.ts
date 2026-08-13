@@ -5,6 +5,8 @@
 // is exactly an ImageData buffer — the sender wraps the result with
 // `new ImageData(new Uint8ClampedArray(pixels.buffer), size, size)` at no copy.
 
+import QRCode from "qrcode";
+
 const WHITE = 0xffffffff;
 const BLACK = 0xff000000; // opaque black: alpha in the high byte, little-endian
 
@@ -33,4 +35,19 @@ export function rasterizeQr(
     }
   }
   return { size, pixels };
+}
+
+export function drawQrToCanvas(text: string, canvas: HTMLCanvasElement): void {
+  const qr = QRCode.create(text, { errorCorrectionLevel: "L" });
+  const raster = rasterizeQr(qr.modules.size, qr.modules.data, 4);
+  canvas.width = raster.size;
+  canvas.height = raster.size;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+  const imgData = new ImageData(
+    new Uint8ClampedArray(raster.pixels.buffer),
+    raster.size,
+    raster.size,
+  );
+  ctx.putImageData(imgData, 0, 0);
 }

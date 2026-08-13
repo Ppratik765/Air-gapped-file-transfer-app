@@ -8,6 +8,7 @@
          style.css is inert without it, and the pages must agree so standalone
          (installed) mode doesn't jump between letterboxed and edge-to-edge. -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="app-version" content="%APP_VERSION%" />
   <title>WaveDrop — transfer files with light</title>
   <meta name="description"
     content="Send a file or text between two devices with nothing but a screen and a camera. Fountain-coded animated QR codes, no network path in between." />
@@ -28,12 +29,21 @@
     content="A phone mid-transfer, reading an animated QR code off a laptop screen at 129.2 KB/s." />
   <meta name="twitter:card" content="summary_large_image" />
 
-  <link rel="icon" href="./decimen_logo.svg" type="image/svg+xml" />
+  <link rel="icon" href="./wavedrop_logo.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
   <link rel="stylesheet" href="./shared/style.css" />
 </head>
 
 <body class="home-page">
+  <div id="app-promo-banner" class="app-promo-banner" style="display: none;">
+    <div class="app-promo-content">
+      <span class="app-promo-text">Download the Native App for faster scanning and large file support!</span>
+      <div class="app-promo-actions">
+        <a id="download-apk-btn" class="app-promo-apk-btn" href="#" download>Download APK</a>
+        <button id="dismiss-promo-btn" class="app-promo-dismiss-btn" type="button">Dismiss</button>
+      </div>
+    </div>
+  </div>
   <header class="site-header">
     <a class="brand" href="./"><svg class="brand-logo" viewBox="0 0 543 554.1" fill="currentColor" aria-hidden="true">
         <g transform="translate(-241,789) scale(0.1,-0.1)">

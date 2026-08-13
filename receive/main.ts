@@ -13,6 +13,16 @@
 
 import { LTDecoder } from "../shared/fountain";
 import { initTheme } from "../shared/theme";
+import { initAppPromoBanner } from "../shared/app-promo";
+import {
+  createLocalPeerConnection,
+  waitForIceGathering,
+  compressSdp,
+  decompressSdp,
+  type WebRTCFileMetadata,
+} from "../shared/webrtc";
+import { drawQrToCanvas } from "../shared/qr-raster";
+import { scanQrFromVideo } from "../shared/qr-scanner";
 import {
   estimateTransferProgress,
   expectedFountainOverhead,
@@ -33,8 +43,25 @@ import {
 import { NO_SIGNAL_HINT_FRAME_BYTES, NO_SIGNAL_HINT_TX_FPS } from "../shared/send-settings";
 import { statusLine } from "../shared/status-line";
 import { requestScreenWakeLock } from "../shared/wake-lock";
+import { bindTapToFocus } from "../shared/camera-focus";
 import { applyAdvancedConstraint, probeCameraCapabilities } from "../shared/platform";
 import { closeOnBackdropClick } from "../shared/dialog";
+
+declare global {
+  interface Window {
+    AndroidNativeCamera?: {
+      startNativeCamera(): void;
+      stopNativeCamera(): void;
+      startWifiDirectDiscovery(): void;
+      connectToWifiPeer(deviceAddress: string): void;
+      openWifiSettings(): void;
+      isNative(): boolean;
+    };
+    onNativeQrChunkScanned?: (chunk: string) => void;
+    onNativeCameraStopped?: () => void;
+    onWifiPeersDiscovered?: (peersJson: string) => void;
+  }
+}
 
 const startBtn = document.getElementById("start") as HTMLButtonElement;
 const video = document.getElementById("video") as HTMLVideoElement;
@@ -57,6 +84,49 @@ const noSignalToast = document.getElementById("no-signal")!;
 const noSignalDialog = document.getElementById("no-signal-dialog") as HTMLDialogElement;
 const noSignalTips = document.getElementById("no-signal-tips")!;
 const metric = (id: string) => document.getElementById(id)!;
+
+const wifiDirectBtn = document.getElementById("wifi-direct-btn") as HTMLButtonElement;
+const wifiPeersModal = document.getElementById("wifi-peers-modal") as HTMLDialogElement;
+const wifiPeersList = document.getElementById("wifi-peers-list") as HTMLDivElement;
+const wifiPeersClose = document.getElementById("wifi-peers-close") as HTMLButtonElement;
+
+if (window.AndroidNativeCamera?.isNative()) {
+  wifiDirectBtn.hidden = false;
+}
+wifiDirectBtn.addEventListener("click", () => {
+  if (window.AndroidNativeCamera?.isNative()) {
+    window.AndroidNativeCamera.startWifiDirectDiscovery();
+  } else {
+    alert("Native Wi-Fi Direct is not available in the web browser. Please turn on your Mobile Hotspot manually and have the sender connect to it before starting the transfer.");
+  }
+});
+wifiPeersClose.addEventListener("click", () => wifiPeersModal.close());
+
+window.onWifiPeersDiscovered = (peersJson: string) => {
+  try {
+    const peers = JSON.parse(peersJson) as { name: string; address: string }[];
+    wifiPeersList.innerHTML = "";
+    if (peers.length === 0) {
+      wifiPeersList.innerHTML = "<p>No nearby devices found.</p>";
+    } else {
+      for (const peer of peers) {
+        const btn = document.createElement("button");
+        btn.className = "secondary-button";
+        btn.textContent = peer.name || peer.address || "Unknown Device";
+        btn.onclick = () => {
+          if (window.AndroidNativeCamera?.isNative()) {
+            window.AndroidNativeCamera.connectToWifiPeer(peer.address);
+            wifiPeersModal.close();
+          }
+        };
+        wifiPeersList.appendChild(btn);
+      }
+    }
+    wifiPeersModal.showModal();
+  } catch (e) {
+    console.error("Failed to parse peers json", e);
+  }
+};
 
 // Nothing has decoded in this long → the sender is almost certainly too dense
 // for this camera. The first nudge comes quickly (a dead link is dead within
@@ -90,8 +160,282 @@ initTheme();
 // marks its own link. Optional because the standalone build swaps the nav for
 // a badge. Same story on the sender.
 document.querySelector('.mode-nav a[href="../receive/"]')?.setAttribute("aria-current", "page");
+initAppPromoBanner();
 
 const { setStatus, showError } = statusLine(stats);
+
+const receiveTechInputs = document.querySelectorAll<HTMLInputElement>('input[name="receive-tech"]');
+const webrtcReceivePanel = document.getElementById("webrtc-receive-panel") as HTMLDivElement;
+const webrtcReceiverStep1 = document.getElementById("webrtc-receiver-step1") as HTMLDivElement;
+const webrtcReceiverStep2 = document.getElementById("webrtc-receiver-step2") as HTMLDivElement;
+const webrtcReceiverStep3 = document.getElementById("webrtc-receiver-step3") as HTMLDivElement;
+const webrtcReceiverStartBtn = document.getElementById("webrtc-receiver-start-btn") as HTMLButtonElement;
+const webrtcReceiverScannerBox = document.getElementById("webrtc-receiver-scanner-box") as HTMLDivElement;
+const webrtcReceiverVideo = document.getElementById("webrtc-receiver-video") as HTMLVideoElement;
+const webrtcAnswerQr = document.getElementById("webrtc-answer-qr") as HTMLCanvasElement;
+const webrtcReceiverStatus = document.getElementById("webrtc-receiver-status") as HTMLParagraphElement;
+const webrtcReceiverProgressFill = document.getElementById("webrtc-receiver-progress-fill") as HTMLDivElement;
+const webrtcReceiverProgressText = document.getElementById("webrtc-receiver-progress-text") as HTMLSpanElement;
+const webrtcReceiverSpeedText = document.getElementById("webrtc-receiver-speed-text") as HTMLSpanElement;
+
+let currentReceiveTech: "optical" | "radio" = "optical";
+let activeReceiverPc: RTCPeerConnection | null = null;
+let activeReceiverStream: MediaStream | null = null;
+let receiverScanInterval: ReturnType<typeof setInterval> | null = null;
+
+function stopOpticalCamera() {
+  if (window.AndroidNativeCamera) {
+    window.AndroidNativeCamera.stopNativeCamera();
+  }
+  if (stream) {
+    stream.getTracks().forEach((t) => t.stop());
+    stream = null;
+  }
+  if (activeReceiverStream) {
+    activeReceiverStream.getTracks().forEach((t) => t.stop());
+    activeReceiverStream = null;
+  }
+}
+
+function resetWebRtcReceiverUI(): void {
+  if (activeReceiverPc) {
+    activeReceiverPc.close();
+    activeReceiverPc = null;
+  }
+  if (receiverScanInterval) {
+    clearInterval(receiverScanInterval);
+    receiverScanInterval = null;
+  }
+  if (receiverConnTimeout) {
+    clearTimeout(receiverConnTimeout);
+    receiverConnTimeout = null;
+  }
+  if (activeReceiverStream) {
+    activeReceiverStream.getTracks().forEach((t) => t.stop());
+    activeReceiverStream = null;
+  }
+  if (webrtcReceiverVideo) {
+    webrtcReceiverVideo.srcObject = null;
+  }
+  if (webrtcReceivePanel) webrtcReceivePanel.hidden = true;
+  if (webrtcReceiverStep1) webrtcReceiverStep1.hidden = true;
+  if (webrtcReceiverStep2) webrtcReceiverStep2.hidden = true;
+  if (webrtcReceiverStep3) webrtcReceiverStep3.hidden = true;
+  if (webrtcReceiverScannerBox) webrtcReceiverScannerBox.hidden = true;
+  if (webrtcAnswerQr) {
+    const ctx = webrtcAnswerQr.getContext("2d");
+    if (ctx) ctx.clearRect(0, 0, webrtcAnswerQr.width, webrtcAnswerQr.height);
+  }
+  if (webrtcReceiverProgressFill) webrtcReceiverProgressFill.style.width = "0%";
+  if (webrtcReceiverProgressText) webrtcReceiverProgressText.textContent = "0 MB / 0 MB (0%)";
+  if (webrtcReceiverSpeedText) webrtcReceiverSpeedText.textContent = "0 KB/s";
+}
+
+for (const input of receiveTechInputs) {
+  input.addEventListener("change", () => {
+    currentReceiveTech = input.value as "optical" | "radio";
+    if (currentReceiveTech === "radio") {
+      stopOpticalCamera();
+      startBtn.style.display = "none";
+      preview.style.display = "none";
+      if (webrtcReceivePanel) webrtcReceivePanel.hidden = false;
+      initWebRtcReceiver();
+    } else {
+      resetWebRtcReceiverUI();
+      startBtn.style.display = "";
+      setStatus("Tap start camera to begin");
+    }
+  });
+}
+
+let receiverConnTimeout: ReturnType<typeof setTimeout> | null = null;
+
+function showReceiverHandshakeTimeoutError(): void {
+  if (receiverConnTimeout) {
+    clearTimeout(receiverConnTimeout);
+    receiverConnTimeout = null;
+  }
+  showError("Connection timed out. Devices may not be on the same local network.");
+  if (webrtcReceiverStatus) {
+    webrtcReceiverStatus.innerHTML = `
+      <span style="color: var(--red); font-weight: bold;">Connection Failed / Timed Out</span><br/>
+      <button id="webrtc-receiver-retry-btn" type="button" style="margin-top: 10px; padding: 8px 16px; border-radius: 8px; background: var(--line-bright); color: #fff; font-weight: bold; border: none; cursor: pointer;">Retry Handshake</button>
+    `;
+    const retryBtn = document.getElementById("webrtc-receiver-retry-btn");
+    if (retryBtn) {
+      retryBtn.onclick = () => initWebRtcReceiver();
+    }
+  }
+}
+
+function initWebRtcReceiver() {
+  if (activeReceiverPc) {
+    activeReceiverPc.close();
+    activeReceiverPc = null;
+  }
+  if (receiverScanInterval) {
+    clearInterval(receiverScanInterval);
+    receiverScanInterval = null;
+  }
+  if (receiverConnTimeout) {
+    clearTimeout(receiverConnTimeout);
+    receiverConnTimeout = null;
+  }
+
+  if (webrtcReceiverStep1) webrtcReceiverStep1.hidden = false;
+  if (webrtcReceiverStep2) webrtcReceiverStep2.hidden = true;
+  if (webrtcReceiverStep3) webrtcReceiverStep3.hidden = true;
+  if (webrtcReceiverScannerBox) webrtcReceiverScannerBox.hidden = true;
+
+  if (webrtcReceiverStartBtn) {
+    webrtcReceiverStartBtn.onclick = async () => {
+      if (webrtcReceiverScannerBox) webrtcReceiverScannerBox.hidden = false;
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: "environment", width: { ideal: 960 }, height: { ideal: 720 } },
+        });
+        activeReceiverStream = stream;
+        if (webrtcReceiverVideo) {
+          webrtcReceiverVideo.srcObject = stream;
+          await webrtcReceiverVideo.play().catch(() => undefined);
+          bindTapToFocus(webrtcReceiverVideo, () => activeReceiverStream);
+        }
+
+        receiverScanInterval = setInterval(async () => {
+          if (!webrtcReceiverVideo) return;
+          const text = await scanQrFromVideo(webrtcReceiverVideo);
+          if (text && text.startsWith("WD_OFFER:")) {
+            if (receiverScanInterval) clearInterval(receiverScanInterval);
+            stream.getTracks().forEach((t) => t.stop());
+            activeReceiverStream = null;
+
+            try {
+              const offerSdp = await decompressSdp(text, "OFFER");
+              const pc = createLocalPeerConnection();
+              activeReceiverPc = pc;
+
+              // WebRTC Lifecycle Event Logging
+              pc.addEventListener("icegatheringstatechange", () => {
+                console.log("[WebRTC Receiver] ICE gathering state:", pc.iceGatheringState);
+              });
+              pc.addEventListener("connectionstatechange", () => {
+                console.log("[WebRTC Receiver] Connection state:", pc.connectionState);
+                if (pc.connectionState === "connected") {
+                  if (receiverConnTimeout) {
+                    clearTimeout(receiverConnTimeout);
+                    receiverConnTimeout = null;
+                  }
+                } else if (pc.connectionState === "failed") {
+                  showReceiverHandshakeTimeoutError();
+                }
+              });
+              pc.addEventListener("iceconnectionstatechange", () => {
+                console.log("[WebRTC Receiver] ICE connection state:", pc.iceConnectionState);
+                if (pc.iceConnectionState === "failed") {
+                  showReceiverHandshakeTimeoutError();
+                }
+              });
+              pc.addEventListener("signalingstatechange", () => {
+                console.log("[WebRTC Receiver] Signaling state:", pc.signalingState);
+              });
+
+              if (webrtcReceiverStatus) webrtcReceiverStatus.textContent = "Gathering local network candidates…";
+
+              await pc.setRemoteDescription({ type: "offer", sdp: offerSdp });
+              const answer = await pc.createAnswer();
+              await pc.setLocalDescription(answer);
+              await waitForIceGathering(pc);
+
+              const compressedAnswer = await compressSdp(pc.localDescription!.sdp, "ANSWER");
+              if (webrtcAnswerQr) drawQrToCanvas(compressedAnswer, webrtcAnswerQr);
+
+              if (webrtcReceiverStep1) webrtcReceiverStep1.hidden = true;
+              if (webrtcReceiverStep2) webrtcReceiverStep2.hidden = false;
+              if (webrtcReceiverStatus) webrtcReceiverStatus.textContent = "Displaying Answer QR Code (Connecting over local radio…)";
+
+              // Start 10s connection timeout
+              receiverConnTimeout = setTimeout(() => {
+                if (pc.connectionState !== "connected" && pc.iceConnectionState !== "connected") {
+                  showReceiverHandshakeTimeoutError();
+                }
+              }, 10000);
+
+              pc.ondatachannel = (event) => {
+                if (receiverConnTimeout) {
+                  clearTimeout(receiverConnTimeout);
+                  receiverConnTimeout = null;
+                }
+                const channel = event.channel;
+                if (webrtcReceiverStep2) webrtcReceiverStep2.hidden = true;
+                if (webrtcReceiverStep3) webrtcReceiverStep3.hidden = false;
+                if (webrtcReceiverStatus) {
+                  webrtcReceiverStatus.textContent = "Connected! Transferring data…";
+                }
+
+                let meta: WebRTCFileMetadata | null = null;
+                const chunks: ArrayBuffer[] = [];
+                let receivedBytes = 0;
+                const startTs = performance.now();
+
+                channel.binaryType = "arraybuffer";
+                channel.onmessage = (evt) => {
+                  if (typeof evt.data === "string") {
+                    try {
+                      meta = JSON.parse(evt.data) as WebRTCFileMetadata;
+                      if (webrtcReceiverStatus) {
+                        webrtcReceiverStatus.textContent = `Receiving ${meta.name} (${(meta.size / 1024 / 1024).toFixed(1)} MB)…`;
+                      }
+                    } catch {
+                      // Plain text message
+                    }
+                    return;
+                  }
+
+                  const chunk = evt.data as ArrayBuffer;
+                  chunks.push(chunk);
+                  receivedBytes += chunk.byteLength;
+
+                  if (meta) {
+                    const pct = Math.min(100, Math.round((receivedBytes / meta.size) * 100));
+                    if (webrtcReceiverProgressFill) webrtcReceiverProgressFill.style.width = `${pct}%`;
+                    const recMb = (receivedBytes / 1024 / 1024).toFixed(1);
+                    const totalMb = (meta.size / 1024 / 1024).toFixed(1);
+                    if (webrtcReceiverProgressText) {
+                      webrtcReceiverProgressText.textContent = `${recMb} / ${totalMb} MB (${pct}%)`;
+                    }
+
+                    const elapsedSec = (performance.now() - startTs) / 1000;
+                    const kbs = elapsedSec > 0 ? receivedBytes / 1024 / elapsedSec : 0;
+                    if (webrtcReceiverSpeedText) {
+                      webrtcReceiverSpeedText.textContent =
+                        kbs > 1024 ? `${(kbs / 1024).toFixed(1)} MB/s` : `${kbs.toFixed(0)} KB/s`;
+                    }
+
+                    if (receivedBytes >= meta.size) {
+                      if (webrtcReceiverProgressFill) webrtcReceiverProgressFill.style.width = "100%";
+                      if (webrtcReceiverStatus) {
+                        webrtcReceiverStatus.textContent = `✔ Transfer 100% complete! Downloaded ${meta.name}.`;
+                      }
+                      const blob = new Blob(chunks, { type: meta.mimeType || "application/octet-stream" });
+                      const a = document.createElement("a");
+                      a.href = URL.createObjectURL(blob);
+                      a.download = meta.name;
+                      a.click();
+                    }
+                  }
+                };
+              };
+            } catch (err) {
+              showError(`Failed to process WebRTC Offer: ${err}`);
+            }
+          }
+        }, 150);
+      } catch (err) {
+        showError(`Camera access failed: ${err}`);
+      }
+    };
+  }
+}
 
 // The toast asks one question; the answers live in the dialog. The tip list is
 // built here rather than in the HTML so its numbers stay tied to the shared
@@ -149,6 +493,33 @@ function offerRetry(message: string) {
 }
 
 async function start() {
+  if (window.AndroidNativeCamera) {
+    startBtn.disabled = true;
+    startBtn.style.display = "none";
+    preview.style.display = "none";
+    metricsEl.style.display = "grid";
+    if (diagnosticsEl) diagnosticsEl.style.display = "block";
+    setStatus("Native camera starting...");
+    
+    window.onNativeQrChunkScanned = (base64Chunk: string) => {
+      const binaryString = atob(base64Chunk);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      onDecoded(bytes);
+    };
+
+    window.onNativeCameraStopped = () => {
+      done = true;
+    };
+    
+    noSignal.cameraStarted(performance.now());
+    startTs = performance.now();
+    window.AndroidNativeCamera.startNativeCamera();
+    return;
+  }
+
   if (!navigator.mediaDevices?.getUserMedia) {
     // On insecure origins the API doesn't exist AT ALL — this is the plain-
     // http-over-LAN case. localhost is exempt; other hosts need https.
@@ -206,7 +577,7 @@ async function start() {
   pool.resize(Number(cfgWorkers.value));
   reportCameraSettings();
   void applyCameraExtras();
-  preview.addEventListener("click", () => void applyCameraExtras());
+  bindTapToFocus(video, () => stream);
   if (!settingsWired) {
     settingsWired = true;
     for (const el of [cfgWidth, cfgCapFps, cfgWorkers]) {
@@ -380,6 +751,11 @@ function goodputKbs(elapsed: number): number {
 async function finish(container: Uint8Array, hashOk: boolean, seconds: number) {
   done = true;
   captureGen++;
+  
+  if (window.AndroidNativeCamera) {
+    window.AndroidNativeCamera.stopNativeCamera();
+  }
+
   // Tear the whole capture pipeline down: the camera, the stats timer, and the
   // decode pool. Each worker holds its own ~940 KB zxing WASM instance, which
   // is worth reclaiming on a phone the moment the last frame is in.
@@ -494,7 +870,7 @@ async function finish(container: Uint8Array, hashOk: boolean, seconds: number) {
   }
 }
 
-/** Deletes the received-media cache — the one thing Decimen persists (see
+/** Deletes the received-media cache — the one thing WaveDrop persists (see
  *  servableMediaUrl). Handing the phone over shouldn't mean handing over the
  *  last transfer. A player still streaming from the cache falls back to its
  *  blob URL via the error listener wired in finish(). */
