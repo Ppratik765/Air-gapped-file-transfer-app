@@ -1,22 +1,27 @@
-# Troubleshooting
+# Troubleshooting and Diagnostics
 
-## "Nothing happening?"
+---
 
-If the camera runs for a while without decoding a single frame, a small toast appears above the preview asking exactly that. **Help** opens the tips; **Dismiss** snoozes it (it returns later if things are still dead — tapping a button doesn't make frames arrive).
+## 1. "Nothing happening?" Toast or Zero Decode Throughput
 
-The fixes are on the **sender**, which is the non-obvious part. In order:
+If the camera is active but no frames are successfully decoding, perform the following adjustments on the **sender** device:
 
-1. On the sender, open Transfer settings and drop **bytes / frame to 1465**. The 2953-byte default is tuned for close-range phone-to-phone and is exactly what fails on an ordinary monitor at arm's length.
-2. Still nothing? Drop the sender's **tx fps to 24**.
-3. Fill this camera's view with the code, and prop the phone against something — autofocus hunting from hand tremor is the usual culprit.
-4. Turn the sending screen's brightness all the way up.
+1. **Reduce Density (Bytes / Frame):** The default density of 2953 bytes (QR Version 40) is designed for close-range mobile-to-mobile transfers. On standard PC monitors or at greater distances, open **Transfer Settings** on the sender and reduce **Bytes / frame to 1465** (QR Version 27) or **857** (QR Version 18).
+2. **Lower Transmission FPS:** If the sender's display refresh rate causes frame drops or rolling shutter interference with the camera, reduce **Transmission FPS to 24 or 30**.
+3. **Maximize Screen Brightness:** Ensure the sending screen brightness is set to 100% to maximize black/white module contrast.
+4. **Stabilize Camera View:** Hand tremor causing autofocus hunting is the most common cause of decode degradation. Stabilize the receiver against a surface and fill 80% of the camera viewfinder with the QR code.
 
-## Camera problems
+---
 
-- **Permission denied** — tap the browser's permission prompt carefully; if you hit Block by accident, allow camera for the site and tap **Start camera** again (no reload needed).
-- **"camera needs a secure context"** — the page is being served over plain http. Browsers remove the camera API on insecure origins; serve over https (the dev server already does, self-signed) or use [WaveDrop Repository](https://github.com/Ppratik765/Offline-file-transfer-app).
-- **Standalone receiver file** — opening `wavedrop-receiver.html` from `file://` will not get a camera on iOS or Android. See [Install & offline](install-and-offline.md).
+## 2. Camera and Permission Errors
 
-## Slow transfers
+- **Permission Denied:** If camera access was blocked, update site permissions in your browser settings and tap **Start camera** again.
+- **Insecure Context Error:** The camera API (`navigator.mediaDevices.getUserMedia`) is disabled by browsers on unencrypted `http://` origins (except `localhost`). When testing across a local area network, use the HTTPS development server (`npm run dev`) or access via the Progressive Web App.
 
-See the tuning table in [Sending](sending.md) — bytes/frame and tx fps are the two levers that matter.
+---
+
+## 3. WebRTC Direct Mode Connection Failures
+
+- **Firewall Restrictions:** Ensure both devices are connected to the same local subnet without AP isolation enabled.
+- **Signaling Desync:** Ensure both the Offer and Answer QR codes were scanned completely and in sequence.
+- **Android Wi-Fi Direct Fallback:** If local router connectivity is unavailable, use the native Android app's **Discover Nearby Devices** feature to form an automatic peer-to-peer Wi-Fi mesh.
