@@ -1,27 +1,37 @@
-# Receiving
+# Receiving Files and Text
 
-Open `/receive/`, tap **Start camera**, point it at the sender's code. There is no pairing: the receiver locks onto any WaveDrop stream mid-flight, works out on its own whether a file or text is arriving, and restarts cleanly if the sender does.
+The WaveDrop receiver operates across standard mobile and desktop web browsers as well as the native Kotlin Android wrapper.
 
-Fill the camera view with the code and prop the phone against something — autofocus hunting from hand tremor is the #1 throughput killer. On cameras that support it (Android, typically) continuous autofocus is enabled automatically.
+---
 
-Progress counts **frames collected**, not blocks solved — fountain decoding back-loads its solve cascade, so the bar is estimated from frame rate and only verified completion reaches 100%.
+## 1. Optical Fountain Reception
 
-## When it lands
+### 1.1 Operation
+1. Navigate to `/receive/` and click **Start camera**.
+2. Align the camera viewfinder with the sender's animated QR display.
+3. The receiver dynamically adjusts to the incoming stream. It handles session restarts and changes in sender block parameters automatically without requiring manual page reloads.
 
-- The file is verified against its SHA-256 before anything is offered.
-- Images, video, and audio preview inline — video plays in the page (never autoplays), other files just get the **Save** link.
-- **Receive another file** reloads into a fresh receiver.
-- **Clear WaveDrop cache** scrubs the received bytes from browser storage — see [Privacy](privacy.md).
-- Text snippets appear with a **Copy** button and exist only until the tab closes.
+### 1.2 Reception Diagnostics
+The interface displays live transfer telemetry:
+- **FPS:** Camera capture rate vs WebAssembly decode throughput.
+- **Goodput:** Decoded payload transfer rate (KB/s).
+- **Frames Collected:** Total unique droplets received vs estimated required frames ($K \cdot 1.15$).
+- **Source Blocks ($K$):** Total logical blocks composing the complete payload.
 
-**Live diagnostics** (capture/decode fps, goodput, frames, K) is collapsible during the transfer and becomes the **Transfer summary** when it ends.
+### 1.3 Completion and File Verification
+Upon decoding all $K$ source blocks:
+- The raw binary container is decompressed if GZIP was utilized.
+- The payload's cryptographic SHA-256 hash is computed and validated against the container's embedded digest.
+- Images, audio, and video formats render with an inline playback preview (video is served via HTTP 206 Partial Content caching).
+- Text snippets display an interactive **Copy to Clipboard** button.
+- Clicking **Clear WaveDrop cache** purges all staged binary media from browser storage.
 
-## Receive settings
+---
 
-Applied live while the camera runs; a device that refuses a live reconfigure (iOS, sometimes) keeps the current stream and says so. Frame rates the camera reports it cannot reach are grayed out.
+## 2. Receiver Configuration Controls
 
-| setting | default | notes |
+| Setting | Default | Technical Role |
 |---|---|---|
-| capture width | 1280 | 1920 costs decode time; 960 helps weak CPUs |
-| capture fps | 60 | iOS delivers 30 unless the exact rate is demanded — the app handles this |
-| decode workers | 2 | one WASM decoder per worker; busy workers drop frames, which the fountain absorbs |
+| **Capture Width** | 1280 px | Optimal balance between barcode module resolution and decode latency. 1920 px increases decode time; 960 px is suitable for legacy mobile chipsets. |
+| **Capture FPS** | 60 FPS | Configures hardware camera capture frequency. (Demands exact 60 FPS on iOS to bypass default 30 FPS throttling). |
+| **Decode Workers** | 2 | Number of parallel Web Workers running instances of `zxing-wasm`. 2–3 workers provide optimal throughput without causing CPU thermal throttling. |
