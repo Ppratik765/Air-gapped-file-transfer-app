@@ -1,38 +1,49 @@
-# Install & offline
+# Installation and Offline Usage
 
-Three shapes, all built from the same source. Built artifacts for all three are attached to every [release](../../../../releases).
+WaveDrop is built from the ground up for 100% offline functionality. It is distributed in four deployment formats:
 
-| | what it is | needs a server? | offline |
+| Format | Distribution Location | Network Requirement | Offline Support |
 |---|---|---|---|
-| **Hosted site** | three pages plus a service worker — live at [WaveDrop Repository](https://github.com/Ppratik765/Offline-file-transfer-app) | yes, any static host | after the first visit |
-| **`wavedrop-sender.html`** | one file, ~55 KB | no | always |
-| **`wavedrop-receiver.html`** | one file, ~1.3 MB | see the caveat | always |
+| **Progressive Web App (PWA)** | Static HTTPS Web Server | Required only for initial visit | Full offline functionality via Service Worker |
+| **Native Android App (APK)** | `android/app/build/outputs/apk/` | None | Fully self-contained local assets (`file:///android_asset/`) |
+| **Standalone Sender HTML** | `dist-standalone/wavedrop-sender.html` (~55 KB) | None | 100% offline, runnable directly from local filesystem |
+| **Standalone Receiver HTML** | `dist-standalone/wavedrop-receiver.html` (~1.3 MB) | Local HTTP/HTTPS server | Embedded WASM, requires secure origin for camera access |
 
-## Hosted site: install and offline
+---
 
-The site precaches everything, decoder wasm included — load it once and it works with the network off. Any page does it; landing straight on `/receive/` from a shared link caches the whole app.
+## 1. Installing as a Progressive Web App (PWA)
 
-Install it for the full-screen app experience:
+Once loaded over HTTPS, WaveDrop caches all necessary JavaScript bundles, stylesheets, and the WebAssembly decoder module (`zxing_reader.wasm`):
 
-- **Android** — Chrome offers *Install app* from the menu (real manifest, proper icons).
-- **iOS** — Share → **Add to Home Screen**.
+- **Android (Chrome / Edge / Firefox):** Tap the browser menu and select **Install app** or **Add to Home screen**.
+- **iOS (Safari):** Tap the **Share** button and select **Add to Home Screen**.
 
-This is the shape to use on a phone: it keeps a real `https://` origin, which is what the camera wants.
+Once installed, the application launches in standalone fullscreen mode and functions with all network interfaces (Wi-Fi, Bluetooth, Cellular) disabled.
 
-## Standalone files
+---
 
-`npm run build:standalone` produces two pages with nothing external in them — no script src, no stylesheet, no fetch. The receiver carries the 940 KB decoder wasm as a `data:` URI, which is why it is 1.3 MB. Mail one to someone, drop it on a USB stick.
+## 2. Native Android Application Installation
 
-**The receiver's one caveat:** opened from `file://`, the page gets an opaque origin. Desktop Chrome and Firefox will generally prompt for the camera and work; **iOS Safari and Android Chrome will not give a local file a camera.** Since the receiver is usually the phone, serve the file over http(s) from anything — or use the hosted site's offline mode instead. The sender has no such problem; it works from `file://` everywhere.
+The native Android app embeds the compiled web assets and adds hardware-accelerated CameraX scanning and direct Wi-Fi P2P device pairing:
 
-## Demo mode
+1. Build the APK locally using Gradle:
+   ```bash
+   npm run build:android
+   cd android && ./gradlew assembleDebug
+   ```
+2. Install the generated APK on your device:
+   ```bash
+   adb install app/build/outputs/apk/debug/app-debug.apk
+   ```
 
+---
+
+## 3. Standalone Single-File Distributions
+
+Generating standalone files:
 ```bash
-npm run demo    # sender locked to the two bundled images
+npm run build:standalone
 ```
 
-No file picker, no text box — for a sending machine sitting unattended in front of people. This is the dev server with `VITE_DEMO=1`, not a hardened kiosk: anyone with the keyboard has devtools.
-
-## Why the dev server is https-only
-
-The receiver uses `getUserMedia`, and browsers remove that API entirely on insecure origins — a phone reaching your dev server over plain http has no camera, full stop (`localhost` is exempt; your phone isn't localhost). The dev server ships a self-signed certificate: tap through the warning once ("Show Details → visit this website" on iOS, "Advanced → Proceed" elsewhere) and the page is a secure context, so the camera works.
+- `wavedrop-sender.html` can be loaded from any USB drive or filesystem directly via `file://`.
+- `wavedrop-receiver.html` inlines the complete 940 KB `zxing` decoder binary as a Base64 data URI. *Note: Modern mobile browsers (iOS Safari, Android Chrome) block camera permissions on `file://` URLs. The receiver HTML must be served over a local HTTP/HTTPS server or opened within desktop browsers.*
