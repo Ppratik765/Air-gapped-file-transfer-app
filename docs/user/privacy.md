@@ -1,14 +1,33 @@
-# Privacy
+# Privacy and Security Model
 
-**Nothing is transmitted anywhere except as light.** There is no account, no pairing, no analytics, and no network path between the devices — the site works with the network off after the first visit.
+WaveDrop is engineered with a strict local-first, zero-telemetry architectural posture.
 
-**The channel is not confidential.** Whatever is on the sending screen is readable by *any* camera pointed at it. The property WaveDrop gives you is *no network*, not encryption. Don't stream secrets in a room you don't trust.
+---
 
-**Integrity is checked.** Every received file is verified against its SHA-256 before being offered; a corrupted stream fails loudly rather than handing over damaged bytes.
+## 1. Zero Network Exfiltration
 
-## What persists on the receiving device
+- In **Optical Stream Mode**, data transmission occurs exclusively via visible electromagnetic radiation (light emitted from screen to camera lens). No radio interfaces (Wi-Fi, Bluetooth, NFC, Cellular) are accessed or required.
+- The web application contains zero third-party tracking scripts, analytics SDKs, external font requests, or remote telemetry endpoints.
+- After the initial visit (or when using standalone/native builds), all logic runs completely offline.
 
-- **Text snippets: nothing.** Shown with a Copy button, gone when the tab closes.
-- **Files you save** go wherever your browser puts downloads.
-- **Received media** (video/audio, so the in-page player can seek) is staged in the browser's Cache API and would otherwise linger until the next transfer overwrites it. The **Clear WaveDrop cache** button next to *Receive another file* deletes it on the spot — use it before handing the phone to someone.
-- The service worker's offline cache holds the **app itself**, never transferred content.
+---
+
+## 2. Channel Visibility vs Encryption
+
+- **Optical Channel Security:** The optical stream is **not encrypted** by default. Any camera or observer with visual line-of-sight to the transmitting screen can capture and decode the payload. WaveDrop provides physical network isolation (air-gapping), not visual confidentiality.
+- **WebRTC DataChannel Security:** When utilizing WebRTC Direct mode, all binary transmission through the `RTCDataChannel` is cryptographically secured via Datagram Transport Layer Security (DTLS-SRTP) using ephemeral key pairs generated directly on each device.
+
+---
+
+## 3. Cryptographic Data Integrity
+
+- Every transmitted container carries a 32-byte SHA-256 cryptographic digest computed prior to transmission.
+- Upon decoding the fountain droplet cascade, the receiver computes the SHA-256 hash of the reconstructed payload and verifies it against the header. Any bit corruption or frame mismatch causes an immediate integrity alert, preventing the execution or storage of compromised files.
+
+---
+
+## 4. Local Storage and Data Persistence
+
+- **Text Snippets:** Stored entirely in volatile JavaScript memory; destroyed immediately upon closing or refreshing the browser tab.
+- **Transferred Files:** Saved directly to the user's local file system only when explicitly requested.
+- **Media Cache API:** Received video/audio files are temporarily staged in the browser's Cache API solely to support Range requests (`bytes=start-end`) for in-page playback. Tapping **Clear WaveDrop cache** immediately purges all stored media from disk.
