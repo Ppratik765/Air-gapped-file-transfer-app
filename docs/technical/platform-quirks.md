@@ -1,33 +1,47 @@
-# Platform quirks
+# Platform Quirks and Hardened Workarounds
 
-The hard-won details baked into the code, so nobody has to rediscover them.
+This document outlines key platform-specific behaviors, browser engine differences, and hardware limitations encountered during development, along with their implemented architectural workarounds.
 
-## Camera
+---
 
-- **iOS lies about frame rate.** `frameRate: {ideal: 60}` silently delivers 30; demand `{exact: 60}` (works at 1280-wide) and fall back to `ideal`. Always read back `getSettings()`.
-- **iOS may refuse a live `applyConstraints`.** The receiver keeps the running stream and says so rather than tearing down a transfer.
-- **Capabilities are probed, not UA-sniffed** (`shared/platform.ts`). Android Chrome exposes `torch`, `focusMode`, `frameRate.max` via `getCapabilities()`; iOS exposes none of them. Continuous autofocus is applied when available; unreachable fps options are disabled. `torch` is reported but deliberately unused — the sender is an emissive screen, a flashlight only adds glare.
-- **`requestVideoFrameCallback` chains outlive their stream** and resume on the next one; a generation counter prevents zombie capture loops.
+## 1. Web Camera and Video Pipeline
 
-## QR decoding
+### 1.1 iOS Frame Rate Clamping
+- **Behavior:** When requesting `getUserMedia({ video: { frameRate: { ideal: 60 } } })`, iOS WebKit silently delivers 30 FPS.
+- **Workaround:** Demand `{ exact: 60 }` constraint at 1280px capture width, and catch errors to fall back gracefully to `{ ideal: 60 }`. Always read back `track.getSettings().frameRate` to confirm true stream throughput.
 
-Safari has never shipped `BarcodeDetector` (WebKit bug 281848), so decoding is [zxing-cpp](https://github.com/zxing-cpp/zxing-cpp) compiled to WASM in workers — the one portable path.
+### 1.2 Constraint Rejection During Active Transfer
+- **Behavior:** Mobile Safari occasionally throws runtime exceptions when invoking `applyConstraints()` on active streams (e.g., dynamic focus or resolution adjustment).
+- **Workaround:** Wrap runtime constraint modifications in non-fatal promise handlers. If the hardware rejects live changes, the receiver preserves the running stream rather than interrupting an in-progress transfer.
 
-## Media playback
+### 1.3 Capability Probing over User-Agent Sniffing
+- **Behavior:** UA strings on mobile browsers are notoriously spoofed or inaccurate.
+- **Workaround:** Capabilities are probed directly via `MediaStreamTrack.getCapabilities()`. Chrome on Android exposes `torch`, `focusMode`, and `frameRate.max`; iOS exposes none. Unreachable frame rate options are dynamically disabled in the UI. Note: The flashlight (`torch`) is deliberately disabled by policy during optical scanning to prevent screen reflection and glare on the sender's display.
 
-**iOS Safari will not reliably play `blob:` URLs in `<video>`/`<audio>`** — AVFoundation wants real HTTP semantics, Range requests included. Received media goes into the Cache API and is served through a workbox `rangeRequests` route at a real URL (`received-media`); the blob URL is the fallback when no service worker controls the page, plus an `error`-event fallback in case AVFoundation bypasses the SW entirely.
+---
 
-## Safari 26 "Liquid Glass" chrome tinting
+## 2. In-Browser Media Playback and Range Requests
 
-Safari 26 ignores `theme-color` and tints its chrome / safe-area bands by **sampling page CSS — fixed-position layers especially — and latches the sample**. Two consequences baked in:
+### 2.1 iOS Safari `blob:` URL Playback Failure
+- **Behavior:** iOS AVFoundation refuses to seek or play video and audio loaded from standard `blob:` URLs, demanding standard HTTP Range header semantics (`bytes=start-end`).
+- **Workaround:** Decoded binary media is staged into the browser's Cache API. A dedicated Workbox Service Worker route (`rangeRequests`) intercepts calls to `https://.../received-media` and responds with HTTP 206 Partial Content slices. A fallback listener ensures that if the Service Worker is unavailable, standard `blob:` URLs are used.
 
-- `html` carries an explicit `background-color` (a transparent root samples as *white*).
-- The sender's tap-to-fullscreen QR is **not a fixed overlay** — it's a page state (`body.qr-full`) that hides everything else and lets the stage fill the viewport in normal flow. Flow content repaints on reflow; there is no fixed layer for the tint to latch onto. (Every overlay variant — fixed white, fixed transparent with absolute white child, safe-area-inset overlay — left white bands latched after close on a real device.)
+---
 
-## Assorted UI
+## 3. Safari 26 UI Chrome and Liquid Glass Tinting
 
-- **16px input floor**: mobile Safari zooms the page when a smaller control takes focus; every settings control pays the 16px instead of locking viewport scale.
-- **Sticky `:hover`**: iOS latches `:hover` on the last tap target — any state meant to be *seen* on touch must be the resting style, not a hover style.
-- **`<dialog>` focus**: `showModal()` focuses the first button and iOS paints it pre-highlighted; focus is sent to the title (`tabindex="-1" autofocus`) instead.
-- **Backdrop-click close must be geometric** (`shared/dialog.ts`): the gaps between a dialog's children are also `event.target === dialog`, so the target check alone closes on ordinary taps.
-- **`hidden` vs display**: any rule setting `display` on an element that also uses the `hidden` attribute needs an explicit `[hidden] { display: none }` companion.
+### 3.1 CSS Sampling Latches
+- **Behavior:** Safari 26 samples viewport background colors to dynamically tint navigation bars and safe-area insets. Fixed-position elements (e.g., fullscreen overlays) cause Safari to latch incorrect contrast samples even after dismissal.
+- **Workaround:** Fullscreen QR display avoids `position: fixed` overlays entirely. Instead, the UI applies a `body.qr-full` state class that hides non-essential DOM nodes in normal flow, ensuring the layout tree repaints cleanly upon exit without leaving artifacts in the browser chrome.
+
+---
+
+## 4. Native Android Subsystem Quirks
+
+### 4.1 CameraX and ML-Kit Backpressure
+- **Behavior:** High-density animated QR codes delivered at 60 FPS can saturate ML-Kit's barcode analyzer on mid-tier Android devices, causing memory pressure and frame queue lag.
+- **Workaround:** `ImageAnalysis.Builder` is configured with `STRATEGY_KEEP_ONLY_LATEST`. Older unanalyzed camera frames are dropped immediately at the native layer, allowing the analyzer to process only the latest optical frame.
+
+### 4.2 Wi-Fi Direct (P2P) Permission Matrix
+- **Behavior:** Android 13+ (API level 33+) requires the `NEARBY_WIFI_DEVICES` permission with `neverForLocation` flags, whereas earlier Android releases mandate `ACCESS_FINE_LOCATION` to perform Wi-Fi Direct peer discovery.
+- **Workaround:** `MainActivity.kt` dynamically evaluates the SDK version at runtime and requests the exact version-specific permission array before invoking `WifiP2pManager.discoverPeers()`.
