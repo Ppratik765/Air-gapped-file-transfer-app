@@ -165,11 +165,12 @@ initAppPromoBanner();
 const { setStatus, showError } = statusLine(stats);
 
 const receiveTechInputs = document.querySelectorAll<HTMLInputElement>('input[name="receive-tech"]');
-const webrtcReceivePanel = document.getElementById("webrtc-receive-panel") as HTMLDivElement;
+const paneWebrtc = document.getElementById("pane-webrtc") as HTMLDivElement;
 const webrtcReceiverStep1 = document.getElementById("webrtc-receiver-step1") as HTMLDivElement;
 const webrtcReceiverStep2 = document.getElementById("webrtc-receiver-step2") as HTMLDivElement;
 const webrtcReceiverStep3 = document.getElementById("webrtc-receiver-step3") as HTMLDivElement;
 const webrtcReceiverStartBtn = document.getElementById("webrtc-receiver-start-btn") as HTMLButtonElement;
+const webrtcReceiverCancelBtn = document.getElementById("webrtc-receiver-cancel-btn") as HTMLButtonElement;
 const webrtcReceiverScannerBox = document.getElementById("webrtc-receiver-scanner-box") as HTMLDivElement;
 const webrtcReceiverVideo = document.getElementById("webrtc-receiver-video") as HTMLVideoElement;
 const webrtcAnswerQr = document.getElementById("webrtc-answer-qr") as HTMLCanvasElement;
@@ -184,6 +185,7 @@ let activeReceiverStream: MediaStream | null = null;
 let receiverScanInterval: ReturnType<typeof setInterval> | null = null;
 
 function stopOpticalCamera() {
+  captureGen++;
   if (window.AndroidNativeCamera) {
     window.AndroidNativeCamera.stopNativeCamera();
   }
@@ -195,6 +197,17 @@ function stopOpticalCamera() {
     activeReceiverStream.getTracks().forEach((t) => t.stop());
     activeReceiverStream = null;
   }
+  if (statsTimer !== undefined) {
+    clearInterval(statsTimer);
+    statsTimer = undefined;
+  }
+  if (video) {
+    video.srcObject = null;
+  }
+  preview.style.display = "none";
+  if (diagnosticsEl) diagnosticsEl.style.display = "none";
+  if (metricsEl) metricsEl.style.display = "none";
+  noSignalToast.hidden = true;
 }
 
 function resetWebRtcReceiverUI(): void {
@@ -217,11 +230,13 @@ function resetWebRtcReceiverUI(): void {
   if (webrtcReceiverVideo) {
     webrtcReceiverVideo.srcObject = null;
   }
-  if (webrtcReceivePanel) webrtcReceivePanel.hidden = true;
+  if (paneWebrtc) paneWebrtc.hidden = true;
   if (webrtcReceiverStep1) webrtcReceiverStep1.hidden = true;
   if (webrtcReceiverStep2) webrtcReceiverStep2.hidden = true;
   if (webrtcReceiverStep3) webrtcReceiverStep3.hidden = true;
   if (webrtcReceiverScannerBox) webrtcReceiverScannerBox.hidden = true;
+  if (webrtcReceiverCancelBtn) webrtcReceiverCancelBtn.hidden = true;
+  if (webrtcReceiverStartBtn) webrtcReceiverStartBtn.hidden = false;
   if (webrtcAnswerQr) {
     const ctx = webrtcAnswerQr.getContext("2d");
     if (ctx) ctx.clearRect(0, 0, webrtcAnswerQr.width, webrtcAnswerQr.height);
@@ -238,12 +253,19 @@ for (const input of receiveTechInputs) {
       stopOpticalCamera();
       startBtn.style.display = "none";
       preview.style.display = "none";
-      if (webrtcReceivePanel) webrtcReceivePanel.hidden = false;
+      if (diagnosticsEl) diagnosticsEl.style.display = "none";
+      if (metricsEl) metricsEl.style.display = "none";
+      if (settingsEl) settingsEl.style.display = "none";
+      if (result) result.style.display = "none";
+      if (paneWebrtc) paneWebrtc.hidden = false;
       initWebRtcReceiver();
     } else {
       resetWebRtcReceiverUI();
+      if (paneWebrtc) paneWebrtc.hidden = true;
+      if (settingsEl) settingsEl.style.display = "";
       startBtn.style.display = "";
-      setStatus("Tap start camera to begin");
+      if (result) result.style.display = "";
+      setStatus("Ready to scan a file or text stream");
     }
   });
 }
@@ -281,15 +303,45 @@ function initWebRtcReceiver() {
     clearTimeout(receiverConnTimeout);
     receiverConnTimeout = null;
   }
+  if (activeReceiverStream) {
+    activeReceiverStream.getTracks().forEach((t) => t.stop());
+    activeReceiverStream = null;
+  }
 
   if (webrtcReceiverStep1) webrtcReceiverStep1.hidden = false;
   if (webrtcReceiverStep2) webrtcReceiverStep2.hidden = true;
   if (webrtcReceiverStep3) webrtcReceiverStep3.hidden = true;
   if (webrtcReceiverScannerBox) webrtcReceiverScannerBox.hidden = true;
+  if (webrtcReceiverCancelBtn) webrtcReceiverCancelBtn.hidden = true;
+  if (webrtcReceiverStartBtn) webrtcReceiverStartBtn.hidden = false;
+
+  setStatus("Scan the Sender's Offer QR Code to start WebRTC transfer");
+
+  if (webrtcReceiverCancelBtn) {
+    webrtcReceiverCancelBtn.onclick = () => {
+      if (receiverScanInterval) {
+        clearInterval(receiverScanInterval);
+        receiverScanInterval = null;
+      }
+      if (activeReceiverStream) {
+        activeReceiverStream.getTracks().forEach((t) => t.stop());
+        activeReceiverStream = null;
+      }
+      if (webrtcReceiverVideo) {
+        webrtcReceiverVideo.srcObject = null;
+      }
+      if (webrtcReceiverScannerBox) webrtcReceiverScannerBox.hidden = true;
+      if (webrtcReceiverCancelBtn) webrtcReceiverCancelBtn.hidden = true;
+      if (webrtcReceiverStartBtn) webrtcReceiverStartBtn.hidden = false;
+      setStatus("Scan the Sender's Offer QR Code to start WebRTC transfer");
+    };
+  }
 
   if (webrtcReceiverStartBtn) {
     webrtcReceiverStartBtn.onclick = async () => {
       if (webrtcReceiverScannerBox) webrtcReceiverScannerBox.hidden = false;
+      if (webrtcReceiverCancelBtn) webrtcReceiverCancelBtn.hidden = false;
+      webrtcReceiverStartBtn.hidden = true;
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: "environment", width: { ideal: 960 }, height: { ideal: 720 } },
