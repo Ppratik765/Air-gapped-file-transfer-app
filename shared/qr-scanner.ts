@@ -4,6 +4,7 @@
 
 import { readBarcodes, prepareZXingModule } from "zxing-wasm/reader";
 import wasmUrl from "../receive/wasm-url";
+import { applyAdvancedConstraint, probeCameraCapabilities } from "./platform";
 
 let wasmPrepared = false;
 
@@ -16,6 +17,71 @@ export async function ensureScannerWasm(): Promise<void> {
     },
   });
   wasmPrepared = true;
+}
+
+/**
+ * Acquire the highest quality / resolution camera stream available on the device
+ * specifically for WebRTC handshake QR scanning.
+ */
+export async function getHighestQualityCameraStream(): Promise<MediaStream> {
+  const attempts: MediaStreamConstraints[] = [
+    // 1. Highest resolution (4K / UHD) back camera
+    {
+      audio: false,
+      video: {
+        facingMode: { ideal: "environment" },
+        width: { ideal: 3840, min: 1280 },
+        height: { ideal: 2160, min: 720 },
+      },
+    },
+    // 2. Full HD 1080p back camera
+    {
+      audio: false,
+      video: {
+        facingMode: { ideal: "environment" },
+        width: { ideal: 1920, min: 1280 },
+        height: { ideal: 1080, min: 720 },
+      },
+    },
+    // 3. HD 720p back camera
+    {
+      audio: false,
+      video: {
+        facingMode: { ideal: "environment" },
+        width: { ideal: 1280 },
+        height: { ideal: 720 },
+      },
+    },
+    // 4. Any environment camera
+    {
+      audio: false,
+      video: { facingMode: "environment" },
+    },
+    // 5. Default video fallback
+    {
+      audio: false,
+      video: true,
+    },
+  ];
+
+  let lastErr: unknown = null;
+  for (const constraint of attempts) {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia(constraint);
+      const track = stream.getVideoTracks()[0];
+      if (track) {
+        const caps = probeCameraCapabilities(track);
+        if (caps.continuousFocus) {
+          await applyAdvancedConstraint(track, { focusMode: "continuous" }).catch(() => undefined);
+        }
+      }
+      return stream;
+    } catch (err) {
+      lastErr = err;
+    }
+  }
+
+  throw lastErr || new Error("Unable to access high quality camera");
 }
 
 export async function scanQrFromVideo(video: HTMLVideoElement): Promise<string | null> {

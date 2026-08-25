@@ -22,7 +22,7 @@ import {
   type WebRTCFileMetadata,
 } from "../shared/webrtc";
 import { drawQrToCanvas } from "../shared/qr-raster";
-import { scanQrFromVideo } from "../shared/qr-scanner";
+import { scanQrFromVideo, getHighestQualityCameraStream } from "../shared/qr-scanner";
 import {
   estimateTransferProgress,
   expectedFountainOverhead,
@@ -343,9 +343,7 @@ function initWebRtcReceiver() {
       if (webrtcReceiverCancelBtn) webrtcReceiverCancelBtn.hidden = false;
       webrtcReceiverStartBtn.hidden = true;
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: "environment", width: { ideal: 960 }, height: { ideal: 720 } },
-        });
+        const stream = await getHighestQualityCameraStream();
         activeReceiverStream = stream;
         if (webrtcReceiverVideo) {
           webrtcReceiverVideo.srcObject = stream;

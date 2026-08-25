@@ -356,7 +356,7 @@ import {
   sendFileOverDataChannel,
 } from "../shared/webrtc";
 import { drawQrToCanvas } from "../shared/qr-raster";
-import { scanQrFromVideo } from "../shared/qr-scanner";
+import { scanQrFromVideo, getHighestQualityCameraStream } from "../shared/qr-scanner";
 
 const paneWebrtc = document.getElementById("pane-webrtc") as HTMLDivElement;
 const webrtcSenderStep1 = document.getElementById("webrtc-sender-step1") as HTMLDivElement;
@@ -466,13 +466,12 @@ async function startWebRtcSender(file: File): Promise<void> {
         setStatus("Scan Answer QR Code");
 
         try {
-          const stream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: "environment", width: { ideal: 960 }, height: { ideal: 720 } },
-          });
+          const stream = await getHighestQualityCameraStream();
           activeSenderStream = stream;
           if (webrtcSenderVideo) {
             webrtcSenderVideo.srcObject = stream;
             await webrtcSenderVideo.play().catch(() => undefined);
+            bindTapToFocus(webrtcSenderVideo, () => activeSenderStream);
           }
 
           senderScanInterval = setInterval(async () => {
