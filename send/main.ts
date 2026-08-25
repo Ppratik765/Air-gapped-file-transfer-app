@@ -234,7 +234,11 @@ function stopTransfer(): void {
   if (webrtcSenderSpeedText) webrtcSenderSpeedText.textContent = "0 KB/s";
 
   updateFilePicker();
-  setStatus(currentMode() === "snippet" ? "Paste or type some text to begin" : "Choose a file to begin");
+  if (currentTransferTech === "radio") {
+    setStatus("Select a file to start High-Speed WebRTC transfer");
+  } else {
+    setStatus(currentMode() === "snippet" ? "Paste or type some text to begin" : "Choose a file to begin");
+  }
 }
 
 /** Tap the code to fill the screen with it — a bigger physical code lets the
@@ -645,6 +649,18 @@ async function main() {
     input.addEventListener("change", () => {
       currentTransferTech = input.value as "optical" | "radio";
       stopTransfer();
+      const settingsDetails = document.querySelector(".settings") as HTMLDetailsElement | null;
+      if (currentTransferTech === "radio") {
+        modePicker.hidden = true;
+        paneSnippet.hidden = true;
+        paneFile.hidden = false;
+        if (settingsDetails) settingsDetails.hidden = true;
+        setStatus("Select a file to start High-Speed WebRTC transfer");
+      } else {
+        modePicker.hidden = false;
+        if (settingsDetails) settingsDetails.hidden = false;
+        applyMode();
+      }
     });
   }
   applyMode();
