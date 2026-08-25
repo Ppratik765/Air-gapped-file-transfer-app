@@ -1,13 +1,18 @@
 package com.wavedrop.app
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Bundle
 import android.util.Log
 import android.view.View
 import android.view.ViewGroup
 import android.webkit.JavascriptInterface
+import android.webkit.PermissionRequest
 import android.webkit.WebChromeClient
+import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -21,6 +26,8 @@ import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
+import androidx.webkit.WebViewAssetLoader
+import androidx.webkit.WebViewAssetLoader.AssetsPathHandler
 import com.google.mlkit.vision.barcode.BarcodeScanner
 import com.google.mlkit.vision.barcode.BarcodeScannerOptions
 import com.google.mlkit.vision.barcode.BarcodeScanning
@@ -67,6 +74,12 @@ class MainActivity : AppCompatActivity() {
         val rootLayout = FrameLayout(this)
         setContentView(rootLayout)
 
+        // Setup WebViewAssetLoader for secure HTTPS local asset loading (resolves CSS, ES modules, WASM, and workers)
+        val assetLoader = WebViewAssetLoader.Builder()
+            .setDomain("appassets.androidplatform.net")
+            .addPathHandler("/assets/", AssetsPathHandler(this))
+            .build()
+
         // Initialize WebView
         webView = WebView(this).apply {
             layoutParams = FrameLayout.LayoutParams(
@@ -76,13 +89,77 @@ class MainActivity : AppCompatActivity() {
             settings.apply {
                 javaScriptEnabled = true
                 domStorageEnabled = true
+                databaseEnabled = true
                 mediaPlaybackRequiresUserGesture = false
                 allowFileAccess = true
                 allowContentAccess = true
                 cacheMode = WebSettings.LOAD_DEFAULT
+                mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+                setSupportZoom(false)
+                builtInZoomControls = false
+                displayZoomControls = false
+                useWideViewPort = true
+                loadWithOverviewMode = true
             }
-            webViewClient = WebViewClient()
-            webChromeClient = WebChromeClient()
+
+            webViewClient = object : WebViewClient() {
+                override fun shouldInterceptRequest(
+                    view: WebView,
+                    request: WebResourceRequest
+                ): WebResourceResponse? {
+                    var uri = request.url
+                    val path = uri.path ?: ""
+                    
+                    // Rewrite directory paths to index.html (e.g. /assets/www/send/ -> /assets/www/send/index.html)
+                    if (path.endsWith("/")) {
+                        uri = Uri.parse("${uri}index.html")
+                    } else if (path.endsWith("/send") || path.endsWith("/receive")) {
+                        uri = Uri.parse("${uri}/index.html")
+                    }
+                    
+                    return assetLoader.shouldInterceptRequest(uri)
+                }
+
+                override fun shouldOverrideUrlLoading(
+                    view: WebView,
+                    request: WebResourceRequest
+                ): Boolean {
+                    val uri = request.url
+                    val host = uri.host ?: ""
+                    
+                    if (host.equals("appassets.androidplatform.net", ignoreCase = true)) {
+                        val path = uri.path ?: ""
+                        if (path.endsWith("/send") || path.endsWith("/send/")) {
+                            view.loadUrl("https://appassets.androidplatform.net/assets/www/send/index.html")
+                            return true
+                        }
+                        if (path.endsWith("/receive") || path.endsWith("/receive/")) {
+                            view.loadUrl("https://appassets.androidplatform.net/assets/www/receive/index.html")
+                            return true
+                        }
+                        if (path == "/assets/www/" || path == "/assets/www" || path.endsWith("/index.html")) {
+                            return false
+                        }
+                        return false
+                    }
+
+                    // External URLs open in system browser
+                    try {
+                        val intent = Intent(Intent.ACTION_VIEW, uri)
+                        this@MainActivity.startActivity(intent)
+                    } catch (e: Exception) {
+                        Log.e("MainActivity", "Failed to open external link", e)
+                    }
+                    return true
+                }
+            }
+
+            webChromeClient = object : WebChromeClient() {
+                override fun onPermissionRequest(request: PermissionRequest?) {
+                    request?.grant(request.resources)
+                }
+            }
+
             addJavascriptInterface(WebAppInterface(), "AndroidNativeCamera")
         }
         rootLayout.addView(webView)
@@ -127,8 +204,8 @@ class MainActivity : AppCompatActivity() {
 
         cameraExecutor = Executors.newSingleThreadExecutor()
 
-        // Load the web app
-        webView.loadUrl("file:///android_asset/www/index.html")
+        // Load the web app via WebViewAssetLoader HTTPS domain
+        webView.loadUrl("https://appassets.androidplatform.net/assets/www/index.html")
     }
 
     private fun startCamera() {

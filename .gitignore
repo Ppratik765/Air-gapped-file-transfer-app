@@ -16,6 +16,5 @@ android/app/*.iml
 android/local.properties
 android/build/
 android/app/build/
-android/app/src/main/assets/www/
 android/.cxx/
 android/captures/
