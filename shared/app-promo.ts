@@ -47,11 +47,31 @@ export function initAppPromoBanner(): void {
 
   const currentVersion = getAppVersion();
 
-  // If user previously dismissed the promo banner, keep it hidden
-  if (localStorage.getItem("wavedrop_promo_dismissed") === "true") {
-    banner.style.display = "none";
-    return;
+  // Clear any legacy localStorage key to ensure fresh reloads show the banner
+  try {
+    localStorage.removeItem("wavedrop_promo_dismissed");
+  } catch {}
+
+  // Check if current page load is a reload
+  const isReload =
+    (typeof performance !== "undefined" &&
+      typeof performance.getEntriesByType === "function" &&
+      (performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined)?.type === "reload") ||
+    (typeof performance !== "undefined" && (performance as unknown as { navigation?: { type?: number } }).navigation?.type === 1);
+
+  if (isReload) {
+    try {
+      sessionStorage.removeItem("wavedrop_promo_dismissed");
+    } catch {}
   }
+
+  // If user previously dismissed the promo banner in this navigation session, keep it hidden
+  try {
+    if (sessionStorage.getItem("wavedrop_promo_dismissed") === "true") {
+      banner.style.display = "none";
+      return;
+    }
+  } catch {}
 
   if (isInsideNativeApp()) {
     // Native app update check (offline safe)
@@ -85,35 +105,23 @@ export function initAppPromoBanner(): void {
       });
 
   } else if (isMobileDevice()) {
-    // Web app logic
-    const downloadedVersion = localStorage.getItem("wavedrop_downloaded_apk_version");
-    let shouldShow = false;
-
-    if (!downloadedVersion) {
-      if (textElement) textElement.textContent = "Download the Native App for faster scanning and large file support!";
-      if (apkBtn) apkBtn.textContent = "Download APK";
-      shouldShow = true;
-    } else if (compareVersions(currentVersion, downloadedVersion) > 0) {
-      if (textElement) textElement.textContent = `Update your Native App to v${currentVersion} for the latest features!`;
-      if (apkBtn) apkBtn.textContent = "Update APK";
-      shouldShow = true;
+    // Web app logic: show banner on mobile web
+    if (textElement) {
+      textElement.textContent = "Download the Native App for faster scanning and large file support!";
     }
-
-    if (shouldShow) {
-      banner.style.display = "block";
-    } else {
-      banner.style.display = "none";
-    }
-
     if (apkBtn) {
+      apkBtn.textContent = "Download APK";
       apkBtn.href = RELEASE_APK_URL;
       apkBtn.setAttribute("download", "WaveDrop.apk");
-      apkBtn.onclick = (e) => {
-        localStorage.setItem("wavedrop_downloaded_apk_version", currentVersion);
+      apkBtn.onclick = () => {
+        try {
+          sessionStorage.setItem("wavedrop_promo_dismissed", "true");
+        } catch {}
         banner.style.display = "none";
         window.location.href = RELEASE_APK_URL;
       };
     }
+    banner.style.display = "block";
 
   } else {
     // Desktop or non-mobile
@@ -122,7 +130,9 @@ export function initAppPromoBanner(): void {
 
   if (dismissBtn) {
     dismissBtn.onclick = () => {
-      localStorage.setItem("wavedrop_promo_dismissed", "true");
+      try {
+        sessionStorage.setItem("wavedrop_promo_dismissed", "true");
+      } catch {}
       banner.style.display = "none";
     };
   }
