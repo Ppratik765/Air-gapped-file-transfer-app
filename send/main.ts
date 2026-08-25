@@ -53,6 +53,8 @@ declare global {
       startWifiDirectDiscovery(): void;
       connectToWifiPeer(deviceAddress: string): void;
       openWifiSettings(): void;
+      saveFileToDownloads(base64Data: string, fileName: string, mimeType: string): boolean;
+      shareFile(base64Data: string, fileName: string, mimeType: string): void;
       isNative(): boolean;
     };
     onNativeQrChunkScanned?: (chunk: string) => void;

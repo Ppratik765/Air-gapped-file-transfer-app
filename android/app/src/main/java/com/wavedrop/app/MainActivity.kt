@@ -54,12 +54,40 @@ class MainActivity : AppCompatActivity() {
         addAction(android.net.wifi.p2p.WifiP2pManager.WIFI_P2P_THIS_DEVICE_CHANGED_ACTION)
     }
 
+    private var filePathCallback: android.webkit.ValueCallback<Array<Uri>>? = null
+
+    private val fileChooserLauncher =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            if (result.resultCode == RESULT_OK) {
+                val intent = result.data
+                val results: Array<Uri>? = when {
+                    intent?.data != null -> arrayOf(intent.data!!)
+                    intent?.clipData != null -> {
+                        val clip = intent.clipData!!
+                        Array(clip.itemCount) { i -> clip.getItemAt(i).uri }
+                    }
+                    else -> null
+                }
+                filePathCallback?.onReceiveValue(results)
+            } else {
+                filePathCallback?.onReceiveValue(null)
+            }
+            filePathCallback = null
+        }
+
+    private var pendingPermissionRequest: PermissionRequest? = null
+
     private val requestPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted: Boolean ->
             if (isGranted) {
-                startCamera()
+                pendingPermissionRequest?.let { req ->
+                    req.grant(req.resources)
+                    pendingPermissionRequest = null
+                }
             } else {
-                Toast.makeText(this, "Camera permission is required.", Toast.LENGTH_SHORT).show()
+                pendingPermissionRequest?.deny()
+                pendingPermissionRequest = null
+                Toast.makeText(this, "Camera permission is required to scan QR codes.", Toast.LENGTH_SHORT).show()
             }
         }
 
@@ -156,7 +184,36 @@ class MainActivity : AppCompatActivity() {
 
             webChromeClient = object : WebChromeClient() {
                 override fun onPermissionRequest(request: PermissionRequest?) {
-                    request?.grant(request.resources)
+                    if (request == null) return
+                    runOnUiThread {
+                        if (ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+                            request.grant(request.resources)
+                        } else {
+                            pendingPermissionRequest = request
+                            requestPermissionLauncher.launch(Manifest.permission.CAMERA)
+                        }
+                    }
+                }
+
+                override fun onShowFileChooser(
+                    webView: WebView?,
+                    filePathCallback: android.webkit.ValueCallback<Array<Uri>>?,
+                    fileChooserParams: FileChooserParams?
+                ): Boolean {
+                    this@MainActivity.filePathCallback?.onReceiveValue(null)
+                    this@MainActivity.filePathCallback = filePathCallback
+
+                    val intent = fileChooserParams?.createIntent() ?: Intent(Intent.ACTION_GET_CONTENT).apply {
+                        type = "*/*"
+                        addCategory(Intent.CATEGORY_OPENABLE)
+                    }
+                    try {
+                        fileChooserLauncher.launch(intent)
+                    } catch (e: Exception) {
+                        this@MainActivity.filePathCallback = null
+                        return false
+                    }
+                    return true
                 }
             }
 
@@ -405,6 +462,67 @@ class MainActivity : AppCompatActivity() {
         fun openWifiSettings() {
             runOnUiThread {
                 this@MainActivity.startActivity(android.content.Intent(android.provider.Settings.ACTION_WIFI_SETTINGS))
+            }
+        }
+
+        @JavascriptInterface
+        fun saveFileToDownloads(base64Data: String, fileName: String, mimeType: String): Boolean {
+            return try {
+                val bytes = android.util.Base64.decode(base64Data, android.util.Base64.DEFAULT)
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                    val contentValues = android.content.ContentValues().apply {
+                        put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, fileName)
+                        put(android.provider.MediaStore.MediaColumns.MIME_TYPE, mimeType)
+                        put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, android.os.Environment.DIRECTORY_DOWNLOADS)
+                    }
+                    val resolver = contentResolver
+                    val uri = resolver.insert(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, contentValues)
+                    if (uri != null) {
+                        resolver.openOutputStream(uri)?.use { it.write(bytes) }
+                        runOnUiThread {
+                            Toast.makeText(this@MainActivity, "Saved $fileName to Downloads", Toast.LENGTH_LONG).show()
+                        }
+                        true
+                    } else {
+                        false
+                    }
+                } else {
+                    val downloadsDir = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS)
+                    if (!downloadsDir.exists()) downloadsDir.mkdirs()
+                    val file = java.io.File(downloadsDir, fileName)
+                    file.writeBytes(bytes)
+                    runOnUiThread {
+                        Toast.makeText(this@MainActivity, "Saved $fileName to Downloads", Toast.LENGTH_LONG).show()
+                    }
+                    true
+                }
+            } catch (e: Exception) {
+                Log.e("MainActivity", "Failed to save file to downloads", e)
+                false
+            }
+        }
+
+        @JavascriptInterface
+        fun shareFile(base64Data: String, fileName: String, mimeType: String) {
+            runOnUiThread {
+                try {
+                    val bytes = android.util.Base64.decode(base64Data, android.util.Base64.DEFAULT)
+                    val cacheFile = java.io.File(cacheDir, fileName)
+                    cacheFile.writeBytes(bytes)
+                    val contentUri = androidx.core.content.FileProvider.getUriForFile(
+                        this@MainActivity,
+                        "${applicationContext.packageName}.fileprovider",
+                        cacheFile
+                    )
+                    val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                        type = mimeType
+                        putExtra(Intent.EXTRA_STREAM, contentUri)
+                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    }
+                    startActivity(Intent.createChooser(shareIntent, "Share $fileName"))
+                } catch (e: Exception) {
+                    Log.e("MainActivity", "Failed to share file", e)
+                }
             }
         }
 

@@ -55,12 +55,23 @@ declare global {
       startWifiDirectDiscovery(): void;
       connectToWifiPeer(deviceAddress: string): void;
       openWifiSettings(): void;
+      saveFileToDownloads(base64Data: string, fileName: string, mimeType: string): boolean;
+      shareFile(base64Data: string, fileName: string, mimeType: string): void;
       isNative(): boolean;
     };
     onNativeQrChunkScanned?: (chunk: string) => void;
     onNativeCameraStopped?: () => void;
     onWifiPeersDiscovered?: (peersJson: string) => void;
   }
+}
+
+function uint8ArrayToBase64(bytes: Uint8Array): string {
+  let binary = "";
+  const len = bytes.byteLength;
+  for (let i = 0; i < len; i++) {
+    binary += String.fromCharCode(bytes[i]!);
+  }
+  return window.btoa(binary);
 }
 
 const startBtn = document.getElementById("start") as HTMLButtonElement;
@@ -572,43 +583,61 @@ function initWebRtcReceiver() {
                         actions.style.gap = "10px";
                         actions.style.width = "100%";
 
+                        const fileMeta = meta!;
                         const downloadBtn = document.createElement("a");
                         downloadBtn.className = "download";
                         downloadBtn.href = url;
-                        downloadBtn.download = meta.name;
-                        downloadBtn.textContent = `Save ${meta.name}`;
+                        downloadBtn.download = fileMeta.name;
+                        downloadBtn.textContent = `Save ${fileMeta.name}`;
                         downloadBtn.style.textAlign = "center";
                         downloadBtn.style.width = "min(100%, 280px)";
+                        if ((window as any).AndroidNativeCamera?.saveFileToDownloads) {
+                          downloadBtn.onclick = (e) => {
+                            e.preventDefault();
+                            const b64 = uint8ArrayToBase64(new Uint8Array(chunks.reduce((acc, chunk) => {
+                              const merged = new Uint8Array(acc.length + chunk.byteLength);
+                              merged.set(acc);
+                              merged.set(new Uint8Array(chunk), acc.length);
+                              return merged;
+                            }, new Uint8Array(0))));
+                            (window as any).AndroidNativeCamera.saveFileToDownloads(b64, fileMeta.name, fileMeta.mimeType || "application/octet-stream");
+                          };
+                        }
                         actions.append(downloadBtn);
 
-                        const fileMeta = meta;
-                        if (typeof navigator.share === "function") {
-                          try {
-                            const fileObj = new File([blob], fileMeta.name, {
-                              type: fileMeta.mimeType || "application/octet-stream",
-                            });
-                            if (navigator.canShare && navigator.canShare({ files: [fileObj] })) {
-                              const shareBtn = document.createElement("button");
-                              shareBtn.type = "button";
-                              shareBtn.className = "secondary-button";
-                              shareBtn.textContent = "Share / Save to Device";
-                              shareBtn.style.width = "min(100%, 280px)";
-                              shareBtn.onclick = async () => {
-                                try {
-                                  await navigator.share({
-                                    files: [fileObj],
-                                    title: fileMeta.name,
-                                  });
-                                } catch {
-                                  // Share sheet dismissed
-                                }
-                              };
-                              actions.append(shareBtn);
-                            }
-                          } catch {
-                            // File constructor or canShare not supported
+                        const shareBtn = document.createElement("button");
+                        shareBtn.type = "button";
+                        shareBtn.className = "secondary-button";
+                        shareBtn.textContent = "Share / Save to Device";
+                        shareBtn.style.width = "min(100%, 280px)";
+                        shareBtn.onclick = async () => {
+                          if ((window as any).AndroidNativeCamera?.shareFile) {
+                            const b64 = uint8ArrayToBase64(new Uint8Array(chunks.reduce((acc, chunk) => {
+                              const merged = new Uint8Array(acc.length + chunk.byteLength);
+                              merged.set(acc);
+                              merged.set(new Uint8Array(chunk), acc.length);
+                              return merged;
+                            }, new Uint8Array(0))));
+                            (window as any).AndroidNativeCamera.shareFile(b64, fileMeta.name, fileMeta.mimeType || "application/octet-stream");
+                            return;
                           }
-                        }
+                          if (typeof navigator.share === "function") {
+                            try {
+                              const fileObj = new File([blob], fileMeta.name, {
+                                type: fileMeta.mimeType || "application/octet-stream",
+                              });
+                              if (navigator.canShare && navigator.canShare({ files: [fileObj] })) {
+                                await navigator.share({
+                                  files: [fileObj],
+                                  title: fileMeta.name,
+                                });
+                              }
+                            } catch {
+                              // Share sheet dismissed
+                            }
+                          }
+                        };
+                        actions.append(shareBtn);
 
                         const resetBtn = document.createElement("button");
                         resetBtn.type = "button";
@@ -694,33 +723,6 @@ function offerRetry(message: string) {
 }
 
 async function start() {
-  if (window.AndroidNativeCamera) {
-    startBtn.disabled = true;
-    startBtn.style.display = "none";
-    preview.style.display = "none";
-    metricsEl.style.display = "grid";
-    if (diagnosticsEl) diagnosticsEl.style.display = "block";
-    setStatus("Native camera starting...");
-    
-    window.onNativeQrChunkScanned = (base64Chunk: string) => {
-      const binaryString = atob(base64Chunk);
-      const bytes = new Uint8Array(binaryString.length);
-      for (let i = 0; i < binaryString.length; i++) {
-        bytes[i] = binaryString.charCodeAt(i);
-      }
-      onDecoded(bytes);
-    };
-
-    window.onNativeCameraStopped = () => {
-      done = true;
-    };
-    
-    noSignal.cameraStarted(performance.now());
-    startTs = performance.now();
-    window.AndroidNativeCamera.startNativeCamera();
-    return;
-  }
-
   if (!navigator.mediaDevices?.getUserMedia) {
     // On insecure origins the API doesn't exist AT ALL — this is the plain-
     // http-over-LAN case. localhost is exempt; other hosts need https.
@@ -1012,6 +1014,13 @@ async function finish(container: Uint8Array, hashOk: boolean, seconds: number) {
     download.href = url;
     download.download = file.name;
     download.textContent = `Save ${file.name}`;
+    if ((window as any).AndroidNativeCamera?.saveFileToDownloads) {
+      download.onclick = (e) => {
+        e.preventDefault();
+        const b64 = uint8ArrayToBase64(file.bytes);
+        (window as any).AndroidNativeCamera.saveFileToDownloads(b64, file.name, file.type || "application/octet-stream");
+      };
+    }
     // Reading order of the finished page: heading, the run's numbers, the
     // thing that arrived, Save under it, "Receive another file", and the
     // Transfer summary panel last in its natural spot after #result.
@@ -1044,6 +1053,32 @@ async function finish(container: Uint8Array, hashOk: boolean, seconds: number) {
     const actions = document.createElement("div");
     actions.className = "note-actions";
     actions.append(download);
+
+    const shareBtn = document.createElement("button");
+    shareBtn.type = "button";
+    shareBtn.className = "secondary-button";
+    shareBtn.textContent = "Share / Save to Device";
+    shareBtn.onclick = async () => {
+      if ((window as any).AndroidNativeCamera?.shareFile) {
+        const b64 = uint8ArrayToBase64(file.bytes);
+        (window as any).AndroidNativeCamera.shareFile(b64, file.name, file.type || "application/octet-stream");
+        return;
+      }
+      if (typeof navigator.share === "function") {
+        try {
+          const fileObj = new File([file.bytes as BlobPart], file.name, {
+            type: file.type || "application/octet-stream",
+          });
+          if (navigator.canShare && navigator.canShare({ files: [fileObj] })) {
+            await navigator.share({ files: [fileObj], title: file.name });
+          }
+        } catch {
+          // Share sheet dismissed
+        }
+      }
+    };
+    actions.append(shareBtn);
+
     const endActions = document.createElement("div");
     endActions.className = "note-actions";
     endActions.append(restartButton("Receive another file"));
