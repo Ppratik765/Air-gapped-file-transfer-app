@@ -5,9 +5,17 @@ dist/
 dist-standalone/
 artifacts/
 
-# Android generated files
+# Android & IDE generated files
+.gradle/
+.idea/
+*.iml
 android/.gradle/
+android/.idea/
+android/*.iml
+android/app/*.iml
 android/local.properties
 android/build/
 android/app/build/
 android/app/src/main/assets/www/
+android/.cxx/
+android/captures/
