@@ -18,3 +18,5 @@ android/build/
 android/app/build/
 android/.cxx/
 android/captures/
+android/app/release/
+*.apk
