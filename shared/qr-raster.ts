@@ -37,17 +37,26 @@ export function rasterizeQr(
   return { size, pixels };
 }
 
+/**
+ * Render a high-resolution, pixel-perfect QR code directly onto a canvas element.
+ */
 export function drawQrToCanvas(text: string, canvas: HTMLCanvasElement): void {
-  const qr = QRCode.create(text, { errorCorrectionLevel: "L" });
-  const raster = rasterizeQr(qr.modules.size, qr.modules.data, 4);
-  canvas.width = raster.size;
-  canvas.height = raster.size;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return;
-  const imgData = new ImageData(
-    new Uint8ClampedArray(raster.pixels.buffer),
-    raster.size,
-    raster.size,
+  QRCode.toCanvas(
+    canvas,
+    text,
+    {
+      margin: 4,
+      scale: 8,
+      errorCorrectionLevel: "L",
+      color: {
+        dark: "#000000",
+        light: "#ffffff",
+      },
+    },
+    (err) => {
+      if (err) {
+        console.error("QR Canvas render failed", err);
+      }
+    },
   );
-  ctx.putImageData(imgData, 0, 0);
 }
