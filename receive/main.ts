@@ -178,6 +178,7 @@ const webrtcReceiverStatus = document.getElementById("webrtc-receiver-status") a
 const webrtcReceiverProgressFill = document.getElementById("webrtc-receiver-progress-fill") as HTMLDivElement;
 const webrtcReceiverProgressText = document.getElementById("webrtc-receiver-progress-text") as HTMLSpanElement;
 const webrtcReceiverSpeedText = document.getElementById("webrtc-receiver-speed-text") as HTMLSpanElement;
+const webrtcReceiverResult = document.getElementById("webrtc-receiver-result") as HTMLDivElement;
 
 let currentReceiveTech: "optical" | "radio" = "optical";
 let activeReceiverPc: RTCPeerConnection | null = null;
@@ -237,6 +238,10 @@ function resetWebRtcReceiverUI(): void {
   if (webrtcReceiverScannerBox) webrtcReceiverScannerBox.hidden = true;
   if (webrtcReceiverCancelBtn) webrtcReceiverCancelBtn.hidden = true;
   if (webrtcReceiverStartBtn) webrtcReceiverStartBtn.hidden = false;
+  if (webrtcReceiverResult) {
+    webrtcReceiverResult.innerHTML = "";
+    webrtcReceiverResult.hidden = true;
+  }
   if (webrtcAnswerQr) {
     const ctx = webrtcAnswerQr.getContext("2d");
     if (ctx) ctx.clearRect(0, 0, webrtcAnswerQr.width, webrtcAnswerQr.height);
@@ -314,6 +319,10 @@ function initWebRtcReceiver() {
   if (webrtcReceiverScannerBox) webrtcReceiverScannerBox.hidden = true;
   if (webrtcReceiverCancelBtn) webrtcReceiverCancelBtn.hidden = true;
   if (webrtcReceiverStartBtn) webrtcReceiverStartBtn.hidden = false;
+  if (webrtcReceiverResult) {
+    webrtcReceiverResult.innerHTML = "";
+    webrtcReceiverResult.hidden = true;
+  }
 
   setStatus("Scan the Sender's Offer QR Code to start WebRTC transfer");
 
@@ -464,13 +473,155 @@ function initWebRtcReceiver() {
                     if (receivedBytes >= meta.size) {
                       if (webrtcReceiverProgressFill) webrtcReceiverProgressFill.style.width = "100%";
                       if (webrtcReceiverStatus) {
-                        webrtcReceiverStatus.textContent = `✔ Transfer 100% complete! Downloaded ${meta.name}.`;
+                        webrtcReceiverStatus.textContent = "Transfer complete!";
                       }
+
+                      const elapsedSec = Math.max((performance.now() - startTs) / 1000, 0.01);
+                      const rateKb = (meta.size / 1024 / elapsedSec).toFixed(1);
+                      const rateMb = (meta.size / 1024 / 1024 / elapsedSec).toFixed(2);
+                      const displayRate = Number(rateMb) >= 1 ? `${rateMb} MB/s` : `${rateKb} KB/s`;
+                      const displaySize =
+                        meta.size >= 1024 * 1024
+                          ? `${(meta.size / 1024 / 1024).toFixed(2)} MB`
+                          : `${Math.round(meta.size / 1024)} KB`;
+
+                      if (webrtcReceiverProgressText) {
+                        webrtcReceiverProgressText.textContent = `${displaySize} (100%)`;
+                      }
+                      if (webrtcReceiverSpeedText) {
+                        webrtcReceiverSpeedText.textContent = `Avg: ${displayRate}`;
+                      }
+
                       const blob = new Blob(chunks, { type: meta.mimeType || "application/octet-stream" });
-                      const a = document.createElement("a");
-                      a.href = URL.createObjectURL(blob);
-                      a.download = meta.name;
-                      a.click();
+                      const url = URL.createObjectURL(blob);
+
+                      // Programmatic download trigger
+                      const autoA = document.createElement("a");
+                      autoA.href = url;
+                      autoA.download = meta.name;
+                      document.body.appendChild(autoA);
+                      autoA.click();
+                      autoA.remove();
+
+                      // Visual result card, media preview & action buttons
+                      if (webrtcReceiverResult) {
+                        webrtcReceiverResult.innerHTML = "";
+                        webrtcReceiverResult.hidden = false;
+
+                        const heading = document.createElement("div");
+                        heading.className = "done";
+                        heading.textContent = "File Received!";
+
+                        const summary = document.createElement("p");
+                        summary.className = "hint";
+                        summary.style.margin = "0";
+                        summary.textContent = `${displaySize} in ${elapsedSec.toFixed(1)} s · ${displayRate} · Local Radio ✓`;
+
+                        webrtcReceiverResult.append(heading, summary);
+
+                        const mime = (meta.mimeType || "").toLowerCase();
+                        const name = meta.name.toLowerCase();
+                        const isImg = mime.startsWith("image/") || /\.(png|jpe?g|gif|webp|svg|bmp|avif|ico)$/i.test(name);
+                        const isVid = mime.startsWith("video/") || /\.(mp4|webm|mov|mkv|avi)$/i.test(name);
+                        const isAud = mime.startsWith("audio/") || /\.(mp3|wav|ogg|m4a|aac|flac)$/i.test(name);
+
+                        if (isImg) {
+                          const img = document.createElement("img");
+                          img.className = "received";
+                          img.src = url;
+                          img.alt = `Received image preview: ${meta.name}`;
+                          img.style.maxWidth = "min(100%, 340px)";
+                          img.style.maxHeight = "260px";
+                          img.style.borderRadius = "10px";
+                          img.style.objectFit = "contain";
+                          img.style.border = "1px solid var(--line-bright)";
+                          webrtcReceiverResult.append(img);
+                        } else if (isVid) {
+                          const videoEl = document.createElement("video");
+                          videoEl.className = "received";
+                          videoEl.src = url;
+                          videoEl.controls = true;
+                          videoEl.playsInline = true;
+                          videoEl.preload = "metadata";
+                          videoEl.style.maxWidth = "min(100%, 340px)";
+                          videoEl.style.maxHeight = "240px";
+                          videoEl.style.borderRadius = "10px";
+                          webrtcReceiverResult.append(videoEl);
+                        } else if (isAud) {
+                          const audioEl = document.createElement("audio");
+                          audioEl.className = "received";
+                          audioEl.src = url;
+                          audioEl.controls = true;
+                          audioEl.preload = "metadata";
+                          audioEl.style.width = "min(100%, 320px)";
+                          webrtcReceiverResult.append(audioEl);
+                        } else {
+                          const fileBadge = document.createElement("div");
+                          fileBadge.className = "received-note";
+                          fileBadge.style.textAlign = "center";
+                          fileBadge.style.padding = "14px 18px";
+                          fileBadge.innerHTML = `<strong>${meta.name}</strong><br/><span style="color: var(--muted); font-size: 13px;">${displaySize} · ${meta.mimeType || "Binary Document"}</span>`;
+                          webrtcReceiverResult.append(fileBadge);
+                        }
+
+                        const actions = document.createElement("div");
+                        actions.className = "note-actions";
+                        actions.style.display = "flex";
+                        actions.style.flexDirection = "column";
+                        actions.style.alignItems = "center";
+                        actions.style.gap = "10px";
+                        actions.style.width = "100%";
+
+                        const downloadBtn = document.createElement("a");
+                        downloadBtn.className = "download";
+                        downloadBtn.href = url;
+                        downloadBtn.download = meta.name;
+                        downloadBtn.textContent = `Save ${meta.name}`;
+                        downloadBtn.style.textAlign = "center";
+                        downloadBtn.style.width = "min(100%, 280px)";
+                        actions.append(downloadBtn);
+
+                        const fileMeta = meta;
+                        if (typeof navigator.share === "function") {
+                          try {
+                            const fileObj = new File([blob], fileMeta.name, {
+                              type: fileMeta.mimeType || "application/octet-stream",
+                            });
+                            if (navigator.canShare && navigator.canShare({ files: [fileObj] })) {
+                              const shareBtn = document.createElement("button");
+                              shareBtn.type = "button";
+                              shareBtn.className = "secondary-button";
+                              shareBtn.textContent = "Share / Save to Device";
+                              shareBtn.style.width = "min(100%, 280px)";
+                              shareBtn.onclick = async () => {
+                                try {
+                                  await navigator.share({
+                                    files: [fileObj],
+                                    title: fileMeta.name,
+                                  });
+                                } catch {
+                                  // Share sheet dismissed
+                                }
+                              };
+                              actions.append(shareBtn);
+                            }
+                          } catch {
+                            // File constructor or canShare not supported
+                          }
+                        }
+
+                        const resetBtn = document.createElement("button");
+                        resetBtn.type = "button";
+                        resetBtn.className = "secondary-button";
+                        resetBtn.textContent = "Receive Another File";
+                        resetBtn.style.width = "min(100%, 280px)";
+                        resetBtn.onclick = () => {
+                          initWebRtcReceiver();
+                        };
+                        actions.append(resetBtn);
+
+                        webrtcReceiverResult.append(actions);
+                      }
                     }
                   }
                 };

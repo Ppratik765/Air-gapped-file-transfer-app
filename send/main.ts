@@ -370,6 +370,7 @@ const webrtcSenderStatus = document.getElementById("webrtc-sender-status") as HT
 const webrtcSenderProgressFill = document.getElementById("webrtc-sender-progress-fill") as HTMLDivElement;
 const webrtcSenderProgressText = document.getElementById("webrtc-sender-progress-text") as HTMLSpanElement;
 const webrtcSenderSpeedText = document.getElementById("webrtc-sender-speed-text") as HTMLSpanElement;
+const webrtcSenderResult = document.getElementById("webrtc-sender-result") as HTMLDivElement;
 
 let activeSenderPc: RTCPeerConnection | null = null;
 let activeSenderStream: MediaStream | null = null;
@@ -415,6 +416,10 @@ async function startWebRtcSender(file: File): Promise<void> {
   if (webrtcSenderStep1) webrtcSenderStep1.hidden = false;
   if (webrtcSenderStep2) webrtcSenderStep2.hidden = true;
   if (webrtcSenderStep3) webrtcSenderStep3.hidden = true;
+  if (webrtcSenderResult) {
+    webrtcSenderResult.innerHTML = "";
+    webrtcSenderResult.hidden = true;
+  }
 
   setStatus("Gathering local network candidates…");
   if (webrtcSenderStatus) webrtcSenderStatus.textContent = "Gathering local network candidates…";
@@ -552,9 +557,65 @@ async function startWebRtcSender(file: File): Promise<void> {
 
         if (webrtcSenderProgressFill) webrtcSenderProgressFill.style.width = "100%";
         if (webrtcSenderStatus) {
-          webrtcSenderStatus.textContent = `✔ Transfer complete! ${file.name} sent over WebRTC.`;
+          webrtcSenderStatus.textContent = "Transfer complete!";
         }
         setStatus(`✔ Transfer complete! ${file.name} sent over WebRTC.`);
+
+        const elapsedSec = Math.max((performance.now() - startTs) / 1000, 0.01);
+        const rateKb = (file.size / 1024 / elapsedSec).toFixed(1);
+        const rateMb = (file.size / 1024 / 1024 / elapsedSec).toFixed(2);
+        const displayRate = Number(rateMb) >= 1 ? `${rateMb} MB/s` : `${rateKb} KB/s`;
+        const displaySize =
+          file.size >= 1024 * 1024
+            ? `${(file.size / 1024 / 1024).toFixed(2)} MB`
+            : `${Math.round(file.size / 1024)} KB`;
+
+        if (webrtcSenderProgressText) {
+          webrtcSenderProgressText.textContent = `${displaySize} (100%)`;
+        }
+        if (webrtcSenderSpeedText) {
+          webrtcSenderSpeedText.textContent = `Avg: ${displayRate}`;
+        }
+
+        if (webrtcSenderResult) {
+          webrtcSenderResult.innerHTML = "";
+          webrtcSenderResult.hidden = false;
+
+          const heading = document.createElement("div");
+          heading.className = "done";
+          heading.textContent = "File Sent!";
+
+          const summary = document.createElement("p");
+          summary.className = "hint";
+          summary.style.margin = "0";
+          summary.textContent = `${displaySize} in ${elapsedSec.toFixed(1)} s · ${displayRate} · Local Radio ✓`;
+
+          const actions = document.createElement("div");
+          actions.className = "note-actions";
+          actions.style.display = "flex";
+          actions.style.flexDirection = "column";
+          actions.style.alignItems = "center";
+          actions.style.gap = "10px";
+          actions.style.width = "100%";
+
+          const anotherBtn = document.createElement("button");
+          anotherBtn.type = "button";
+          anotherBtn.className = "secondary-button";
+          anotherBtn.textContent = "Send Another File";
+          anotherBtn.style.width = "min(100%, 280px)";
+          anotherBtn.onclick = () => {
+            if (activeSenderPc) {
+              activeSenderPc.close();
+              activeSenderPc = null;
+            }
+            if (paneWebrtc) paneWebrtc.hidden = true;
+            paneFile.hidden = false;
+            applyMode();
+          };
+          actions.append(anotherBtn);
+
+          webrtcSenderResult.append(heading, summary, actions);
+        }
       } catch (err) {
         showError(`WebRTC stream error: ${err}`);
       }
