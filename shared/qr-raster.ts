@@ -45,7 +45,7 @@ export function drawQrToCanvas(text: string, canvas: HTMLCanvasElement): void {
     canvas,
     text,
     {
-      margin: 4,
+      margin: 2,
       scale: 8,
       errorCorrectionLevel: "L",
       color: {

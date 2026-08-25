@@ -15,19 +15,45 @@ export interface WebRTCFileMetadata {
  */
 export function trimSdp(sdp: string): string {
   const lines = sdp.split(/\r?\n/);
-  const trimmed = lines.filter((line) => {
+  const seenCandidates = new Set<string>();
+  const trimmed: string[] = [];
+
+  for (const line of lines) {
     const l = line.trim();
-    if (!l) return false;
-    if (l.startsWith("a=extmap:")) return false;
-    if (l.startsWith("a=extmap-allow-mixed")) return false;
-    if (l.startsWith("a=msid-semantic:")) return false;
-    if (l.startsWith("a=rtcp-fb:")) return false;
-    if (l.startsWith("a=fmtp:")) return false;
-    if (l.startsWith("a=rtpmap:")) return false;
-    if (l.startsWith("a=ssrc:")) return false;
-    if (l.startsWith("a=max-message-size:")) return false;
-    return true;
-  });
+    if (!l) continue;
+    if (l.startsWith("a=extmap:")) continue;
+    if (l.startsWith("a=extmap-allow-mixed")) continue;
+    if (l.startsWith("a=msid-semantic:")) continue;
+    if (l.startsWith("a=rtcp-fb:")) continue;
+    if (l.startsWith("a=fmtp:")) continue;
+    if (l.startsWith("a=rtpmap:")) continue;
+    if (l.startsWith("a=ssrc:")) continue;
+    if (l.startsWith("a=max-message-size:")) continue;
+    if (l.startsWith("a=ice-options:")) continue;
+    if (l.startsWith("a=end-of-candidates")) continue;
+
+    // Filter out TCP candidates (we use UDP SCTP data channels)
+    if (l.startsWith("a=candidate:") && (l.includes(" tcp ") || l.includes(" tcptype "))) {
+      continue;
+    }
+
+    if (l.startsWith("a=candidate:")) {
+      // Strip non-essential candidate attributes: generation, ufrag, network-cost, network-id
+      const cleaned = l
+        .replace(/\s+generation\s+\d+/g, "")
+        .replace(/\s+ufrag\s+[^\s]+/g, "")
+        .replace(/\s+network-cost\s+\d+/g, "")
+        .replace(/\s+network-id\s+\d+/g, "");
+
+      if (seenCandidates.has(cleaned) || seenCandidates.size >= 4) continue;
+      seenCandidates.add(cleaned);
+      trimmed.push(cleaned);
+      continue;
+    }
+
+    trimmed.push(l);
+  }
+
   return trimmed.join("\r\n") + "\r\n";
 }
 
