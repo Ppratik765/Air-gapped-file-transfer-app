@@ -78,7 +78,7 @@ export function initAppPromoBanner(): void {
     banner.style.display = "none";
     
     // Attempt to fetch version.json silently from the live site
-    fetch('https://ppratik765.github.io/Offline-file-transfer-app/version.json', { cache: 'no-store' })
+    fetch('https://wavedrop.vercel.app/version.json', { cache: 'no-store' })
       .then(res => {
         if (!res.ok) return null;
         return res.json();

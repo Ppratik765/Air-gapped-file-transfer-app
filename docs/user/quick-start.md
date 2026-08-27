@@ -12,7 +12,7 @@ WaveDrop enables fast, serverless file and text transfers across physically isol
 This mode operates with **zero network communication** between devices. Data travels entirely as animated light patterns.
 
 ### Step 1: Open WaveDrop on the Sender
-1. Open the [WaveDrop Web Application](https://github.com/Ppratik765/Offline-file-transfer-app) or launch the native Android app.
+1. Open the [WaveDrop Web Application](https://wavedrop.vercel.app) or launch the native Android app.
 2. Select **Send** from the home portal.
 3. Choose **File** (select any file up to 64 MB) or switch to **Text snippet** and paste your text.
 4. Set your sending screen brightness to maximum. The animated QR fountain stream will begin immediately.

@@ -13,7 +13,7 @@ import type { Plugin } from "vite";
  */
 export function licenseBanner(version: string): Plugin {
   const text =
-    `WaveDrop v${version} — https://github.com/Ppratik765/Offline-file-transfer-app — ` +
+    `WaveDrop v${version} — https://github.com/Ppratik765/Air-gapped-file-transfer-app — ` +
     `(c) 2026 Priyanshu Pratik — SPDX-License-Identifier: MIT`;
   const comment = `/*! ${text} */\n`;
   const htmlComment = `<!-- ${text} -->`;
