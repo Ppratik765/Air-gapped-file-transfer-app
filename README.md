@@ -11,32 +11,9 @@ For high-throughput environments, WaveDrop incorporates an optically-signaled se
 
 ---
 
-## Demonstration & Video Walkthrough
+## Video Demo
 
-<!-- ================================================================= -->
-<!-- SCREEN RECORDING DEMONSTRATION SPACE                              -->
-<!-- Drop or upload your screen recording video / GIF in this section.  -->
-<!-- ================================================================= -->
-
-<div align="center">
-
-<!-- Upload and link your screen recording file below (e.g., assets/demo.mp4 or assets/demo.gif) -->
-<!-- Example: <video src="assets/wavedrop-demo.mp4" width="100%" controls></video> -->
-<!-- Example: <img src="assets/wavedrop-demo.gif" alt="WaveDrop Screen Recording Demonstration" width="100%" /> -->
-
-```text
-+-----------------------------------------------------------------------------------+
-|                                                                                   |
-|                                                                                   |
-|                   [ SCREEN RECORDING DEMONSTRATION PLACEHOLDER ]                  |
-|                                                                                   |
-|                      Upload your walkthrough video / GIF here                     |
-|                                                                                   |
-|                                                                                   |
-+-----------------------------------------------------------------------------------+
-```
-
-</div>
+https://github.com/user-attachments/assets/3129388d-31e4-493b-9844-d8b3c98cc9de
 
 ---
 
